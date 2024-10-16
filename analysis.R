@@ -63,7 +63,7 @@ p_price <- ggplot(data = price_plot_data,
   custom_theme
 
 p_price
-ggsave(filename = paste0("figs/prices",fig_format), p_energy,
+ggsave(filename = paste0("figs/prices.",fig_format), p_price,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 
