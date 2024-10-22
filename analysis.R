@@ -129,30 +129,32 @@ forecast_trade[,unique_forecasts:=length(unique(forecast)),
 forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
                by=c("dtm","team")]
 
-ggplot(data = forecast_trade[quantile==50 & team%in%top_teams],
-       aes(x=forecast, y=market_bid, color = team)) +
-  geom_point() +
-  custom_theme
-
-ggplot(data = forecast_trade[quantile==50],# & team%in%top_teams],
+ggplot(data = forecast_trade[quantile==50],
        aes(x=bid_quantile)) +
   geom_histogram() +
-  facet_wrap(~team,ncol=4,scales = "free_y") +
+  facet_wrap(~team,ncol=10,scales = "free_y") +
   # scale_fill_manual(values = color_pal_top10) +
   xlim(c(10,90)) +
   custom_theme +
   theme(strip.text = element_blank()) +
-  labs(y = NULL) + 
+  labs(y = "Counts",x="Bid Quantile [%]") + 
   guides(y = "none")
 
-ggplot(data = forecast_trade[quantile==50 & team%in%top_teams],
-       aes(x=bid_quantile)) +
+plot_data <- forecast_trade[quantile==50 & team%in%top_teams]
+plot_data$team <- factor(plot_data$team,levels = top_teams)
+p_bidq <-  ggplot(data = plot_data,
+                  aes(x=bid_quantile)) +
   geom_histogram() +
-  facet_wrap(~team,ncol=4,scales = "free_y") +
+  facet_wrap(~team,ncol=5,scales = "free_y") +
   # scale_fill_manual(values = color_pal_top10) +
   xlim(c(10,90)) +
   custom_theme +
-  labs(y = NULL) + 
-  guides(y = "none")
+  labs(y = "Counts",x="Bid Quantile [%]") + 
+  guides(y = "none") +
+  theme(strip.text.x = element_text(size = 10))
+
+
+ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 
