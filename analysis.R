@@ -50,12 +50,12 @@ ggsave(filename = paste0("figs/wind_solar.",fig_format), p_energy,
 
 
 price_plot_data <- melt(energy_data[dtm>=as.POSIXct("2024-02-20",tz = "UTC") &
-                                       dtm<as.POSIXct("2024-02-24",tz = "UTC"),
-                                     .(dtm,`Day-ahead`=DA_Price,`Imbalance`=SS_Price)],
-                         id.vars = "dtm",value = "Price [£/MWh]",variable.name = "Market")
+                                      dtm<as.POSIXct("2024-02-24",tz = "UTC"),
+                                    .(dtm,`Day-ahead`=DA_Price,`Imbalance`=SS_Price)],
+                        id.vars = "dtm",value = "Price [£/MWh]",variable.name = "Market")
 
 p_price <- ggplot(data = price_plot_data,
-                   aes(x=dtm,y=`Price [£/MWh]`,linetype=Market)) +
+                  aes(x=dtm,y=`Price [£/MWh]`,linetype=Market)) +
   geom_line() +
   # facet_grid(rows = "variable",scales = "free_y") +
   xlab("Date/Time [settlement period]") +
@@ -113,3 +113,46 @@ p2
 
 ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+
+
+### Trades vs Forecasts
+
+forecast_trade <- merge(forecast_data,
+                        trade_data[,.(dtm,team,market_bid,imbalance_price,price)],by=c("dtm","team"),
+                        all.y = T)
+
+forecast_trade[,unique_forecasts:=length(unique(forecast)),
+               by=c("dtm","team")]
+
+forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
+               by=c("dtm","team")]
+
+ggplot(data = forecast_trade[quantile==50 & team%in%top_teams],
+       aes(x=forecast, y=market_bid, color = team)) +
+  geom_point() +
+  custom_theme
+
+ggplot(data = forecast_trade[quantile==50],# & team%in%top_teams],
+       aes(x=bid_quantile)) +
+  geom_histogram() +
+  facet_wrap(~team,ncol=4,scales = "free_y") +
+  # scale_fill_manual(values = color_pal_top10) +
+  xlim(c(10,90)) +
+  custom_theme +
+  theme(strip.text = element_blank()) +
+  labs(y = NULL) + 
+  guides(y = "none")
+
+ggplot(data = forecast_trade[quantile==50 & team%in%top_teams],
+       aes(x=bid_quantile)) +
+  geom_histogram() +
+  facet_wrap(~team,ncol=4,scales = "free_y") +
+  # scale_fill_manual(values = color_pal_top10) +
+  xlim(c(10,90)) +
+  custom_theme +
+  labs(y = NULL) + 
+  guides(y = "none")
+
+
