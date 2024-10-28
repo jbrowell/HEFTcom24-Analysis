@@ -26,6 +26,16 @@ forecast_data <- fread("data/forecasts.csv")
 energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
                      fread("data/Energy_Data_20240119_20240519.csv"))
 
+### leaderboard
+leaderboard <- fread("data/overall_leaderboard.csv")
+leaderboard[15,Team:="Faces"]
+
+### Repot data
+reports <- fread("data/HEFTcom Reports_May 29, 2024_11.54.csv",
+                 skip = 0,header = T)[-(1:2),]
+reports[9,RecipientFirstName:="Faces"]
+setnames(reports,"RecipientFirstName","team")
+
 ## Plots
 
 ### Competition data
@@ -157,6 +167,18 @@ rel_plot
 
 ggsave(filename = paste0("figs/reliability.",fig_format), rel_plot,
        width = 1.5*fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+#### Forecast methods
+plot_data <- merge(rbind(reports[,.(type="regression",
+                       method=transpose(strsplit(Q3.7,","))),by=team],
+            reports[,.(type="feature engineering",
+                       method=transpose(strsplit(Q3.5,","))),by=team]),
+      leaderboard[,.(team=Team,Rank=rank(Pinball))],
+      by = "team")
+
+ggplot(plot_data,aes(x=method,y=Rank)) +
+  geom_point()
 
 
 ### Trades vs Forecasts
