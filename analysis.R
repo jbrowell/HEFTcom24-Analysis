@@ -177,8 +177,19 @@ plot_data <- merge(rbind(reports[,.(type="regression",
       leaderboard[,.(team=Team,Rank=rank(Pinball))],
       by = "team")
 
-ggplot(plot_data,aes(x=method,y=Rank)) +
-  geom_point()
+plot_data[,method := paste0(method)]
+
+
+top_methods <- plot_data[,.(score=min(Rank)),by=method]
+top_methods[order(score),score2 := cumsum(score)]
+
+
+plot_data$method <- factor(plot_data$method,levels = top_methods[order(score2),method])
+
+ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
+  ylim(c(1,26)) + scale_y_reverse() + 
+  geom_point() +
+  custom_theme
 
 
 ### Trades vs Forecasts
