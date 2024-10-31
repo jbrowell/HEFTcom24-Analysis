@@ -171,25 +171,30 @@ ggsave(filename = paste0("figs/reliability.",fig_format), rel_plot,
 
 #### Forecast methods
 plot_data <- merge(rbind(reports[,.(type="regression",
-                       method=transpose(strsplit(Q3.7,","))),by=team],
-            reports[,.(type="feature engineering",
-                       method=transpose(strsplit(Q3.5,","))),by=team]),
-      leaderboard[,.(team=Team,Rank=rank(Pinball))],
-      by = "team")
+                                    method=transpose(strsplit(Q3.7,","))),by=team],
+                         reports[,.(type="feature engineering",
+                                    method=transpose(strsplit(Q3.5,","))),by=team]),
+                   leaderboard[,.(team=Team,Rank=rank(Pinball))],
+                   by = "team",all.y = T)
 
 plot_data[,method := paste0(method)]
+plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL")]
 
 
-top_methods <- plot_data[,.(score=min(Rank)),by=method]
+top_methods <- plot_data[,.(score=min(Rank,na.rm = T)),by=method]
 top_methods[order(score),score2 := cumsum(score)]
 
 
-plot_data$method <- factor(plot_data$method,levels = top_methods[order(score2),method])
+
+plot_data$method <- factor(plot_data$method,
+                           levels = top_methods[order(score2,decreasing = T),method])
 
 ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
-  ylim(c(1,26)) + scale_y_reverse() + 
+  ylim(c(1,26)) +
   geom_point() +
-  custom_theme
+  coord_flip() +
+  custom_theme +
+  theme(axis.title.y=element_blank())
 
 
 ### Trades vs Forecasts
