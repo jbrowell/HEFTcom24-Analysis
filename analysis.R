@@ -1,3 +1,4 @@
+require(dplyr)
 require(data.table)
 require(rstudioapi)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -157,4 +158,74 @@ p_bidq <-  ggplot(data = plot_data,
 ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
+### Revenue vs pinball loss
 
+tmp <- merge(forecast_score[,.(dtm,team,pinball)],
+             trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
+             all.y = T) %>%
+  filter(team %in% top_teams[1:5])
+tmp %>% ggplot(., aes(x=pinball, y=revenue)) +
+  facet_wrap(~team, nrow=3, scales = "fixed") +
+  geom_point(alpha=0.75)
+
+tmp %>% ggplot(., aes(x=dtm)) +
+  facet_wrap(~team, nrow=5, scales = "free_y") +
+  geom_line(aes(y=pinball, color="pinball")) +
+  geom_line(aes(y=revenue, color="revenue"))
+
+### Revenue vs time of day
+
+tmp <- merge(forecast_score[,.(dtm,team,pinball)],
+             trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
+             all.y = T) %>%
+  filter(team %in% top_teams[1:5]) %>%
+  mutate(hod = strftime(tmp$dtm, format = "%H:%M"))
+
+tmp %>% ggplot(., aes(x=hod)) + 
+  facet_wrap(~team, nrow=5, scales = "fixed") +
+  geom_boxplot(aes(y=revenue)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+### Price spreads
+tmp <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
+             trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
+             all.y = T) %>%
+  filter(team %in% top_teams[1:5]) %>%
+  filter(quantile == 50) %>%
+  mutate(spread = imbalance_price - price) %>%
+  slice_max(spread) %>%
+  mutate(error = market_bid - actual_mwh)
+tmp
+
+### Market bids - actual_mwh vs revenue
+
+merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
+      trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
+      all.y = T) %>%
+  filter(team %in% top_teams[1:5]) %>%
+  filter(quantile == 50) %>%
+  # mutate(spread = imbalance_price - price) %>%
+  mutate(error = market_bid - actual_mwh) %>%
+  ggplot(., aes(x=error, y=revenue)) +
+  facet_wrap(~team, nrow=3, scales = "fixed") +
+  geom_point() +
+  geom_smooth(method='lm') +
+  xlab("Market bid minus actual (MWh)")
+
+trade_data %>%
+  filter(team %in% top_teams[1]) %>%
+  mutate(spread = imbalance_price - price) %>%
+  summarise(spread = quantile(spread, seq(5, 95, by=5)/100), percentile = seq(5, 95, by=5))
+  # ggplot(., aes(x=spread)) +
+  # # facet_wrap(~team, nrow=3, scales = "fixed") +
+  # # geom_histogram() +
+  # stat_ecdf(aes(y=after_stat(y)*100)) +
+  # # scale_y_continuous(sec.axis=sec_axis(trans = ~./100 , name="percentage")) +
+  # theme_bw()  
+
+### Electricity price vs production
+trade_data %>%
+  filter(team %in% top_teams[1]) %>%
+  mutate(spread = imbalance_price - price) %>%
+  ggplot(., aes(x=spread, y=actual_mwh)) +
+  geom_density_2d_filled()
