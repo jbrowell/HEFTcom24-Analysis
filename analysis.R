@@ -28,6 +28,16 @@ forecast_data <- fread("data/forecasts.csv")
 energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
                      fread("data/Energy_Data_20240119_20240519.csv"))
 
+### leaderboard
+leaderboard <- fread("data/overall_leaderboard.csv")
+leaderboard[15,Team:="Faces"]
+
+### Repot data
+reports <- fread("data/HEFTcom Reports_May 29, 2024_11.54.csv",
+                 skip = 0,header = T)[-(1:2),]
+reports[9,RecipientFirstName:="Faces"]
+setnames(reports,"RecipientFirstName","team")
+
 ## Plots
 
 ### Competition data
@@ -116,7 +126,77 @@ p2
 ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
+### Forecast evaluation
 
+top_teams_fc
+
+team_include <- forecast_data[,.N,by=team][N>(39000/2),team]
+
+reliability_data <- rbind(
+  forecast_data[,.(empirical = 100*mean(actual_mwh<=forecast),
+                   TOD = "All"),
+                by=c("team","quantile")],
+  forecast_data[hour(dtm)<=7.5 | hour(dtm)>=16.5,
+                .(empirical = 100*mean(actual_mwh<=forecast),
+                  TOD = "Overnight"),
+                by=c("team","quantile")],
+  forecast_data[hour(dtm)>7.5 & hour(dtm)<16.5,
+                .(empirical = 100*mean(actual_mwh<=forecast),
+                  TOD = "Daytime"),
+                by=c("team","quantile")])
+
+reliability_data <- reliability_data[team %in% team_include]
+
+plot_data <- reliability_data[team%in%top_teams_fc[1:5]]
+plot_data$team <- factor(plot_data$team,levels = top_teams_fc)
+
+rel_plot <- ggplot(plot_data,aes(x=quantile,y=empirical,color=team)) +
+  geom_line(data=reliability_data[!team%in%top_teams_fc[1:5]],
+            mapping=aes(x=quantile,y=empirical,group=team),
+            color=gray(0.1,0.1)) +
+  geom_point(aes(shape=team)) + geom_line() +
+  geom_abline(slope = 1,intercept = 0, linetype="dashed") +
+  facet_wrap(~TOD,ncol=3) +
+  guides(color=guide_legend(title="Team (Top 5)"),
+         shape=guide_legend(title="Team (Top 5)")) +
+  scale_color_discrete(breaks=top_teams_fc) +
+  scale_color_manual(values = color_pal_top10) +
+  xlab("Nominal [%]") + ylab("Empirical [%]") +
+  custom_theme +
+  theme(aspect.ratio = 1)
+
+rel_plot
+
+ggsave(filename = paste0("figs/reliability.",fig_format), rel_plot,
+       width = 1.5*fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+#### Forecast methods
+plot_data <- merge(rbind(reports[,.(type="regression",
+                                    method=transpose(strsplit(Q3.7,","))),by=team],
+                         reports[,.(type="feature engineering",
+                                    method=transpose(strsplit(Q3.5,","))),by=team]),
+                   leaderboard[,.(team=Team,Rank=rank(Pinball))],
+                   by = "team",all.y = T)
+
+plot_data[,method := paste0(method)]
+plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL")]
+
+
+top_methods <- plot_data[,.(score=min(Rank,na.rm = T)),by=method]
+top_methods[order(score),score2 := cumsum(score)]
+
+
+
+plot_data$method <- factor(plot_data$method,
+                           levels = top_methods[order(score2,decreasing = T),method])
+
+ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
+  ylim(c(1,26)) +
+  geom_point() +
+  coord_flip() +
+  custom_theme +
+  theme(axis.title.y=element_blank())
 
 
 ### Trades vs Forecasts
