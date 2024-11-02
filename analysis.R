@@ -167,13 +167,12 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
              trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
              all.y = T) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
-  filter(team %in% top_teams[1:5]) %>% 
   group_by(team) %>% 
   mutate(binned_pinball = cut(x=pinball, breaks=c(0, 60, 120, 180, 240, 300))) %>% 
   ungroup() %>%
   tidyr::drop_na() %>%
   ggplot(aes(x=revenue, y=binned_pinball, height = after_stat(density))) +
-  facet_wrap(~team, nrow = 3) +
+  facet_wrap(~team, nrow = 5) +
   geom_density_ridges(jittered_points = TRUE, scale=1, alpha=0.4, 
                       point_shape = "|", point_size = 2,
                       position = position_points_jitter(height = 0)) +
@@ -186,7 +185,8 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   ) +
   custom_theme
 
-p_revvpinball
+ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
+       width = fig_size_in[1], height = fig_size_in[2], units = "in")
 
 ### Revenue vs time of day
 
@@ -217,15 +217,17 @@ tmp
 merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
       trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
       all.y = T) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
   filter(team %in% top_teams[1:5]) %>%
   filter(quantile == 50) %>%
-  # mutate(spread = imbalance_price - price) %>%
   mutate(error = market_bid - actual_mwh) %>%
-  ggplot(., aes(x=error, y=revenue)) +
+  ggplot(., aes(x=error, y=revenue, colour=revenue)) +
   facet_wrap(~team, nrow=3, scales = "fixed") +
-  geom_point() +
+  geom_point(alpha=0.5) +
   geom_smooth(method='lm') +
-  xlab("Market bid minus actual (MWh)")
+  xlab("Market bid minus actual (MWh)") +
+  scale_color_viridis() +
+  custom_theme
 
 trade_data %>%
   filter(team %in% top_teams[1]) %>%
