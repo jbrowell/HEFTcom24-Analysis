@@ -186,7 +186,7 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   custom_theme
 
 ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
-       width = fig_size_in[1], height = fig_size_in[2], units = "in")
+       width = 8, height = 10, units = "in")
 
 ### Revenue vs time of day
 
@@ -214,31 +214,26 @@ tmp
 
 ### Market bids - actual_mwh vs revenue
 
-merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
+p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
       trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
       all.y = T) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
-  filter(team %in% top_teams[1:5]) %>%
   filter(quantile == 50) %>%
-  mutate(error = market_bid - actual_mwh) %>%
-  ggplot(., aes(x=error, y=revenue, colour=revenue)) +
-  facet_wrap(~team, nrow=3, scales = "fixed") +
-  geom_point(alpha=0.5) +
+  tidyr::drop_na() %>%
+  mutate(difference = market_bid - actual_mwh) %>%
+  ggplot(., aes(x=difference, y=revenue)) +
+  facet_wrap(~team, nrow=5, scales = "fixed") +
+  geom_point(alpha=0.3) +
   geom_smooth(method='lm') +
   xlab("Market bid minus actual (MWh)") +
-  scale_color_viridis() +
+  labs(
+    y = "Revenue (GBP)",
+    x = "Market bid minus actual (MWh)"
+  ) +
   custom_theme
 
-trade_data %>%
-  filter(team %in% top_teams[1]) %>%
-  mutate(spread = imbalance_price - price) %>%
-  summarise(spread = quantile(spread, seq(5, 95, by=5)/100), percentile = seq(5, 95, by=5))
-  # ggplot(., aes(x=spread)) +
-  # # facet_wrap(~team, nrow=3, scales = "fixed") +
-  # # geom_histogram() +
-  # stat_ecdf(aes(y=after_stat(y)*100)) +
-  # # scale_y_continuous(sec.axis=sec_axis(trans = ~./100 , name="percentage")) +
-  # theme_bw()  
+ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marketbids,
+       width = 8, height = 10, units = "in")
 
 ### Electricity price vs production
 trade_data %>%
