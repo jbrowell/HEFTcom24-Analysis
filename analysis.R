@@ -166,6 +166,7 @@ top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,te
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
              trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
              all.y = T) %>%
+  filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   group_by(team) %>% 
   mutate(binned_pinball = cut(x=pinball, breaks=c(0, 60, 120, 180, 240, 300))) %>% 
@@ -217,6 +218,7 @@ tmp
 p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
       trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
       all.y = T) %>%
+  filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   filter(quantile == 50) %>%
   tidyr::drop_na() %>%
@@ -235,9 +237,36 @@ p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actua
 ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marketbids,
        width = 8, height = 10, units = "in")
 
-### Electricity price vs production
-trade_data %>%
-  filter(team %in% top_teams[1]) %>%
-  mutate(spread = imbalance_price - price) %>%
-  ggplot(., aes(x=spread, y=actual_mwh)) +
-  geom_density_2d_filled()
+### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
+
+forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
+                        trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],by=c("dtm", "team"),
+                        all.y = T)
+
+forecast_trade[,unique_forecasts:=length(unique(forecast)),
+               by=c("dtm","team")]
+
+forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
+               by=c("dtm","team")]
+
+p_strategic_vs_medianfc. <- forecast_trade %>%
+  filter(team %in% top_teams) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
+  filter(quantile == 50) %>%
+  mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
+  ggplot(., aes(x=bid_as_forecast, y=revenue, color=bid_quantile)) +
+  facet_wrap(~team, nrow = 5, scales = "fixed") +
+  geom_point(alpha=0.5) +
+  geom_abline(slope=1, intercept=0, linetype="dashed", color="black") +
+  scale_color_viridis_c(name = "Bid quantile (%)") +
+  labs(
+    y = "Revenue from bidding strategically (GBP)",
+    x = "Revenue from bidding median forecast (GBP)"
+  ) +
+  custom_theme +
+  theme(legend.key.height = unit(0.75,"lines"),
+        legend.position = "bottom",
+        legend.justification = "center")
+
+ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
+       width = 8, height = 10, units = "in")
