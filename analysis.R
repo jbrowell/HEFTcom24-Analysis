@@ -3,6 +3,7 @@ require(data.table)
 require(rstudioapi)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 require(ggplot2)
+require(ggridges)
 
 ## Fig format
 fig_format <- "pdf"
@@ -160,18 +161,32 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 
 ### Revenue vs pinball loss
 
-tmp <- merge(forecast_score[,.(dtm,team,pinball)],
+top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
+
+p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
              trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
              all.y = T) %>%
-  filter(team %in% top_teams[1:5])
-tmp %>% ggplot(., aes(x=pinball, y=revenue)) +
-  facet_wrap(~team, nrow=3, scales = "fixed") +
-  geom_point(alpha=0.75)
+  mutate(team = factor(team, levels=top_teams)) %>%
+  filter(team %in% top_teams[1:5]) %>% 
+  group_by(team) %>% 
+  mutate(binned_pinball = cut(x=pinball, breaks=c(0, 60, 120, 180, 240, 300))) %>% 
+  ungroup() %>%
+  tidyr::drop_na() %>%
+  ggplot(aes(x=revenue, y=binned_pinball, height = after_stat(density))) +
+  facet_wrap(~team, nrow = 3) +
+  geom_density_ridges(jittered_points = TRUE, scale=1, alpha=0.4, 
+                      point_shape = "|", point_size = 2,
+                      position = position_points_jitter(height = 0)) +
+  scale_y_discrete(expand = c(0, 0)) +     # will generally have to set the `expand` option
+  scale_x_continuous(expand = c(0, 0)) +   # for both axes to remove unneeded padding
+  coord_cartesian(clip = "off") + # to avoid clipping of the very top of the top ridgeline
+  labs(
+    x = "Revenue (GBP)",
+    y = "Binned pinball loss (MWh)"
+  ) +
+  custom_theme
 
-tmp %>% ggplot(., aes(x=dtm)) +
-  facet_wrap(~team, nrow=5, scales = "free_y") +
-  geom_line(aes(y=pinball, color="pinball")) +
-  geom_line(aes(y=revenue, color="revenue"))
+p_revvpinball
 
 ### Revenue vs time of day
 
