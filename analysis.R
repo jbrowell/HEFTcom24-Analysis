@@ -180,8 +180,13 @@ plot_data <- merge(rbind(reports[,.(type="regression",
 plot_data[,method := paste0(method)]
 plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL")]
 
+plot_data[,method := gsub("\\(please provide details\\)","",method)]
+plot_data[,method := gsub(" based on",":",method)]
 
 top_methods <- plot_data[,.(score=min(Rank,na.rm = T)),by=method]
+top_methods <- merge(top_methods,
+                     plot_data[Rank>1,.(score1=min(Rank,na.rm = T)),by=method],
+                     by = "method")
 top_methods[order(score),score2 := cumsum(score)]
 
 
