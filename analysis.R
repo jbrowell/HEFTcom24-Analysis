@@ -180,21 +180,38 @@ plot_data <- merge(rbind(reports[,.(type="regression",
 plot_data[,method := paste0(method)]
 plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL")]
 
+plot_data[,method := gsub("\\(please provide details\\)","",method)]
+plot_data[,method := gsub(" based on",":",method)]
 
 top_methods <- plot_data[,.(score=min(Rank,na.rm = T)),by=method]
-top_methods[order(score),score2 := cumsum(score)]
+top_methods <- merge(top_methods,
+                     plot_data[Rank>1,.(score1=min(Rank,na.rm = T)),by=method],
+                     by = "method")
+top_methods[order(score+score1/20),score2 := cumsum(score+score1/20)]
 
 
 
 plot_data$method <- factor(plot_data$method,
                            levels = top_methods[order(score2,decreasing = T),method])
 
-ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
+fc_methods <- ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
   ylim(c(1,26)) +
+  ylab("Team [ordered by pinball]") +
+  scale_y_continuous(breaks = 1:plot_data[,max(Rank)],
+                     labels = leaderboard[order(Pinball)][1:26,Team]) +
   geom_point() +
   coord_flip() +
   custom_theme +
-  theme(axis.title.y=element_blank())
+  theme(axis.title.y=element_blank(),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(angle=90,vjust = 0.5,
+                                   hjust = 1,size = 10))
+
+fc_methods
+
+ggsave(filename = paste0("figs/forecast_methods.",fig_format), fc_methods,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
 
 
 ### Trades vs Forecasts
