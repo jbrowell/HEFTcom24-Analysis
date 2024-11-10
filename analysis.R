@@ -309,28 +309,29 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
-             trade_data[,.(dtm,team,revenue)],by=c("dtm","team"),
+             trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
              all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
+  mutate(revenue_per_mwh = if_else(actual_mwh > 20, revenue / actual_mwh, NA_real_)) %>%
   group_by(team) %>% 
-  mutate(binned_pinball = cut(x=pinball, breaks=c(0, 60, 120, 180, 240, 300))) %>% 
+  mutate(binned_pinball = cut(x=pinball, breaks=c(0, 20, 40, 60, 80, 120, 300))) %>%
   ungroup() %>%
   tidyr::drop_na() %>%
-  ggplot(aes(x=revenue, y=binned_pinball, height = after_stat(density))) +
+  ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
   facet_wrap(~team, nrow = 5) +
   geom_density_ridges(jittered_points = TRUE, scale=1, alpha=0.4, 
                       point_shape = "|", point_size = 2,
                       position = position_points_jitter(height = 0)) +
-  scale_y_discrete(expand = c(0, 0)) +     # will generally have to set the `expand` option
-  scale_x_continuous(expand = c(0, 0)) +   # for both axes to remove unneeded padding
-  coord_cartesian(clip = "off") + # to avoid clipping of the very top of the top ridgeline
+  scale_y_discrete(expand = c(0, 0)) +     
+  scale_x_continuous(expand = c(0, 0), limits = c(-100, 100)) +   
+  coord_cartesian(clip = "off") +
   labs(
-    x = "Revenue (GBP)",
-    y = "Binned pinball loss (MWh)"
+    x = "Revenue [£/MWh]",
+    y = "Binned pinball loss [MWh]"
   ) +
   custom_theme
-
+p_revvpinball
 ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
        width = 8, height = 10, units = "in")
 
