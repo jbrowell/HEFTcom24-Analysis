@@ -335,6 +335,48 @@ p_revvpinball
 ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
        width = 8, height = 10, units = "in")
 
+### Relative change in pinball loss compared to change in revenue
+
+n_teams <- 21
+top_teams_fc <- forecast_score[,mean(pinball),by=team][order(V1,decreasing = F)][1:n_teams,team]
+top_teams_fc <- factor(top_teams_fc, levels=top_teams_fc)
+
+forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, pinball)],
+                        trade_data[,.(dtm, team, revenue)],by=c("dtm", "team"),
+                        all.y = T) %>%
+  filter(team %in% top_teams_fc) %>%
+  group_by(team) %>%
+  summarise(avg_pinball = mean(pinball, na.rm = T),
+            revenue = sum(revenue, na.rm = T)) %>%
+  ungroup()
+
+worst_pinball <- forecast_trade %>%
+  select(avg_pinball) %>%
+  max(.)
+worst_revenue <- forecast_trade %>%
+  select(revenue) %>%
+  min(.)
+
+p_percent_change <- forecast_trade %>% 
+  arrange(desc(avg_pinball)) %>%
+  mutate(Pinball = (avg_pinball - worst_pinball) / worst_pinball * 100) %>%
+  mutate(Revenue = (revenue - worst_revenue) / worst_revenue * 100) %>%
+  tidyr::drop_na() %>%
+  select(team, Pinball, Revenue) %>%
+  tidyr::pivot_longer(!team, names_to = "Percentage change", values_to = "value") %>%
+  ggplot(., aes(x=team, y=value, color=`Percentage change`, group=`Percentage change`)) +
+  geom_line() +
+  scale_x_discrete(limits = rev(levels(top_teams_fc[1:(n_teams-1)]))) +
+  custom_theme +
+  scale_color_brewer(palette = "Set1", name="Performance metric") +
+  labs(x="Team [-]", y="Percentage change [%]") +
+  theme(axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle=90,vjust = 0.5,
+                                   hjust = 1, size=10),
+        legend.title = element_blank())
+ggsave(filename = paste0("figs/percent_change.",fig_format), p_percent_change,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
 ### Capture ratio as a function of time of day
 
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:5,team]
