@@ -214,7 +214,55 @@ fc_methods
 ggsave(filename = paste0("figs/forecast_methods.",fig_format), fc_methods,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
+#### Trade methods
 
+leaderboard_trading <- trade_data %>% 
+  group_by(team) %>% 
+  summarise(sum_revenue = sum(revenue)) %>% 
+  arrange(desc(sum_revenue))
+
+setDT(leaderboard_trading)
+plot_data <- merge(rbind(reports[,.(type="approach",
+                                    method=transpose(strsplit(Q4.5,","))),by=team],
+                         reports[,.(type="trade strategy",
+                                    method=Q4.6),by=team]),
+                   leaderboard_trading[,.(team=team,Rank=rank(-1*sum_revenue))],
+                   by = "team",all.y = T)
+
+plot_data[,method := paste0(method)]
+plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL","NA")]
+
+plot_data[,method := gsub("\\(please provide details\\)","",method)]
+plot_data[,method := gsub("Others","Other",method)]
+
+plot_data <- plot_data[!(team == "quantopia" & type == "trade strategy")]
+plot_data <- plot_data[!(method == "Risk-seeking strategy" | method == "Decision model based on deterministic power forecast only")]
+
+top_methods <- plot_data[,.(score=min(Rank,na.rm = T)),by=method]
+top_methods <- merge(top_methods,
+                     plot_data[Rank>1,.(score1=min(Rank,na.rm = T)),by=method],
+                     by = "method")
+top_methods[order(score+score1/20),score2 := cumsum(score+score1/20)]
+
+
+plot_data$method <- factor(plot_data$method,
+                           levels = top_methods[order(score2,decreasing = T),method])
+
+trade_methods <- ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
+  ylab("Team [ordered by total revenue]") +
+  scale_y_continuous(breaks=1:26, labels = leaderboard_trading[1:26, team],
+                     limits=c(1,26)) +
+  geom_point() +
+  coord_flip() +
+  custom_theme +
+  theme(axis.title.y=element_blank(),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(angle=90,vjust = 0.5,
+                                   hjust = 1,size = 10))
+
+trade_methods
+ggsave(filename = paste0("figs/trade_methods.",fig_format), trade_methods,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 ### Trades vs Forecasts
 
