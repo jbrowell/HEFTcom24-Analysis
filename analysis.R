@@ -283,15 +283,24 @@ tmp %>% ggplot(., aes(x=hod)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 ### Price spreads
-tmp <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
-             trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
-             all.y = T) %>%
-  filter(team %in% top_teams[1:5]) %>%
-  filter(quantile == 50) %>%
-  mutate(spread = imbalance_price - price) %>%
-  slice_max(spread) %>%
-  mutate(error = market_bid - actual_mwh)
-tmp
+
+p_spread <- trade_data %>%
+  filter(team == "SVK") %>%
+  mutate(spread = imbalance_price - price,
+         tod = strftime(dtm, format="%H:%M")) %>%
+  select(tod, price, imbalance_price) %>%
+  rename(`Day-ahead price`=price, `Imbalance price`=imbalance_price) %>%
+  tidyr::pivot_longer(!tod, names_to = "price", values_to = "value") %>%
+  ggplot(., aes(x=tod, y=value)) +
+  geom_boxplot() +
+  facet_wrap(~price, nrow = 1, scales = "fixed") +
+  scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
+  labs(y="Price [£/MWh]", x="Time of day [30 min]") +
+  custom_theme
+
+p_spread
+ggsave(filename = paste0("figs/price_spread_boxplot.",fig_format), p_spread, device = cairo_pdf,
+       width = fig_size_in[1], height = fig_size_in[2], units = "in")
 
 ### Market bids - actual_mwh vs revenue
 
@@ -319,7 +328,7 @@ ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marke
 
 ### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
 
-forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
+forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh, pinball)],
                         trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],by=c("dtm", "team"),
                         all.y = T)
 
@@ -329,7 +338,7 @@ forecast_trade[,unique_forecasts:=length(unique(forecast)),
 forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
                by=c("dtm","team")]
 
-p_strategic_vs_medianfc. <- forecast_trade %>%
+p_strategic_vs_medianfc <- forecast_trade %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   filter(quantile == 50) %>%
@@ -347,6 +356,71 @@ p_strategic_vs_medianfc. <- forecast_trade %>%
   theme(legend.key.height = unit(0.75,"lines"),
         legend.position = "bottom",
         legend.justification = "center")
+
+p_strategic_vs_medianfc <- forecast_trade %>%
+  tidyr::drop_na() %>%
+  filter(team %in% top_teams) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
+  mutate(spread = imbalance_price - price) %>%
+  mutate(trade_for_max_revenue = actual_mwh - spread/0.14) %>%
+  group_by(dtm, team) %>%
+  mutate(avg_pinball = mean(pinball)) %>%
+  ungroup() %>%
+  filter(avg_pinball < 500)
+
+p_strategic_vs_medianfc[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1, optimal_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(trade_for_max_revenue),
+               by=c("dtm","team")]
+
+p_strategic_vs_medianfc %>%
+  filter(quantile == 50) %>%
+  # mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
+  # mutate(revenue_diff = revenue - bid_as_forecast) %>%
+  mutate(max_revenue = trade_for_max_revenue*price + (actual_mwh - trade_for_max_revenue) * (imbalance_price - 0.07*(actual_mwh - trade_for_max_revenue))) %>%
+  ggplot(., aes(x=log(max_revenue - revenue), y=avg_pinball, color=bid_quantile)) + #)) +
+  facet_wrap(~team, nrow = 5, scales = "fixed") +
+  geom_point(alpha=0.25) +
+  # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
+  geom_vline(xintercept = log(2e-6), color="red", linetype="dashed") +
+  scale_color_viridis_c(name = "Bid quantile (%)") +
+  # labs(
+  #   y = "Market bid minus trade volume that maximizes revenue (MWh)", # "Revenue from bidding strategically - Revenue from bidding median forecast (GBP)",
+  #   x = "Price spread (GBP/MWh)" # "Revenue from bidding median forecast (GBP)"
+  # ) +
+  custom_theme +
+  theme(legend.key.height = unit(0.75,"lines"),
+        legend.position = "bottom",
+        legend.justification = "center")
+
+p_strategic_vs_medianfc %>%
+  filter(quantile == 50) %>%
+  mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
+  # mutate(revenue_diff = revenue - bid_as_forecast) %>%
+  mutate(max_revenue = trade_for_max_revenue*price + (actual_mwh - trade_for_max_revenue) * (imbalance_price - 0.07*(actual_mwh - trade_for_max_revenue)),
+         capture_ratio = revenue / max_revenue) %>%
+  # filter(spread < 1 & spread > -1) %>%
+  group_by(team) %>%
+  summarise(mean_capture_ratio_pos_spread = mean(revenue[spread>=0]) / mean(max_revenue[spread>=0]),
+            mean_capture_ratio_neg_spread = mean(revenue[spread<0]) / mean(max_revenue[spread<0]),
+            sd_capture_ratio_pos_spread = sd(revenue[spread>=0]) / sd(max_revenue[spread>=0]),
+            sd_capture_ratio_neg_spread = sd(revenue[spread<0]) / sd(max_revenue[spread<0]),
+            sharpe_ratio = mean(revenue) / sd(revenue))
+  ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
+  facet_wrap(~team, nrow = 5, scales = "fixed") +
+  geom_point(alpha=0.25) +
+  # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
+  # geom_vline(xintercept = log(2e-6), color="red", linetype="dashed") +
+  scale_color_viridis_c(name = "Revenue (GBP)") +
+  # labs(
+  #   y = "Market bid minus trade volume that maximizes revenue (MWh)", # "Revenue from bidding strategically - Revenue from bidding median forecast (GBP)",
+  #   x = "Price spread (GBP/MWh)" # "Revenue from bidding median forecast (GBP)"
+  # ) +
+  # ylim(c(-3,2)) +
+  custom_theme +
+  theme(legend.key.height = unit(0.75,"lines"),
+        legend.position = "bottom",
+        legend.justification = "center")
+
+p_strategic_vs_medianfc
 
 ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
        width = 8, height = 10, units = "in")
