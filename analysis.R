@@ -309,8 +309,8 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
-             trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
-             all.y = T) %>%
+                       trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
+                       all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   mutate(revenue_per_mwh = if_else(actual_mwh > 20, revenue / actual_mwh, NA_real_)) %>%
@@ -359,7 +359,7 @@ worst_revenue <- forecast_trade %>%
 
 p_percent_change <- forecast_trade %>% 
   arrange(desc(avg_pinball)) %>%
-  mutate(Pinball = (avg_pinball - worst_pinball) / worst_pinball * 100) %>%
+  mutate(Pinball = (worst_pinball-avg_pinball) / worst_pinball * 100) %>%
   mutate(Revenue = (revenue - worst_revenue) / worst_revenue * 100) %>%
   tidyr::drop_na() %>%
   select(team, Pinball, Revenue) %>%
@@ -369,7 +369,7 @@ p_percent_change <- forecast_trade %>%
   scale_x_discrete(limits = rev(levels(top_teams_fc[1:(n_teams-1)]))) +
   custom_theme +
   scale_color_brewer(palette = "Set1", name="Performance metric") +
-  labs(x="Team [-]", y="Percentage change [%]") +
+  labs(x="Team [-]", y="Improvement [%]") +
   theme(axis.text.y = element_text(size=10),
         axis.text.x = element_text(angle=90,vjust = 0.5,
                                    hjust = 1, size=10),
@@ -397,7 +397,7 @@ p_capture_ratio <- trade_data %>%
   ggplot(., aes(x=hod, y=median_capture_ratio, color=factor(team), group=team, shape = factor(team))) +
   geom_line() +
   geom_point() +
-  scale_color_brewer(palette = "Set1", name="Team") +
+  scale_color_manual(values = color_pal_top10, name="Team") +
   scale_shape_discrete(name="Team") +
   scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
   custom_theme +
@@ -429,8 +429,8 @@ ggsave(filename = paste0("figs/price_spread_boxplot.",fig_format), p_spread, dev
 ### Market bids - actual_mwh vs revenue
 
 p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
-      trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
-      all.y = T) %>%
+                           trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
+                           all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   filter(quantile == 50) %>%
@@ -493,7 +493,7 @@ p_strategic_vs_medianfc <- forecast_trade %>%
   filter(avg_pinball < 500)
 
 p_strategic_vs_medianfc[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1, optimal_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(trade_for_max_revenue),
-               by=c("dtm","team")]
+                        by=c("dtm","team")]
 
 p_strategic_vs_medianfc %>%
   filter(quantile == 50) %>%
@@ -528,7 +528,7 @@ p_strategic_vs_medianfc %>%
             sd_capture_ratio_pos_spread = sd(revenue[spread>=0]) / sd(max_revenue[spread>=0]),
             sd_capture_ratio_neg_spread = sd(revenue[spread<0]) / sd(max_revenue[spread<0]),
             sharpe_ratio = mean(revenue) / sd(revenue))
-  ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
+ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
   facet_wrap(~team, nrow = 5, scales = "fixed") +
   geom_point(alpha=0.25) +
   # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
