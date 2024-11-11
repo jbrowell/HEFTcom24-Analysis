@@ -395,9 +395,8 @@ p_percent_change <- forecast_trade %>%
   tidyr::drop_na() %>%
   select(team, Pinball, Revenue) %>%
   tidyr::pivot_longer(!team, names_to = "Percentage change", values_to = "value") %>%
-  ggplot(., aes(x=team, y=value, fill=`Percentage change`, group=`Percentage change`)) +
-  geom_col() +
-  geom_text(aes(label = value, vjust = ifelse(value > 0, -0.5, 1.5))) +
+  ggplot(., aes(x=team, y=value, color=`Percentage change`, group=`Percentage change`)) +
+  geom_line() +
   scale_x_discrete(limits = rev(levels(top_teams_fc[1:(n_teams-1)]))) +
   custom_theme +
   scale_color_brewer(palette = "Set1", name="Performance metric") +
