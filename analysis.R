@@ -320,7 +320,7 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   tidyr::drop_na() %>%
   ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
   facet_wrap(~team, nrow = 5) +
-  geom_density_ridges(jittered_points = TRUE, scale=1, alpha=0.4, 
+  geom_density_ridges(jittered_points = F, scale=1, alpha=0.4, 
                       point_shape = "|", point_size = 2,
                       position = position_points_jitter(height = 0)) +
   scale_y_discrete(expand = c(0, 0)) +     
@@ -334,6 +334,37 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
 p_revvpinball
 ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
        width = 8, height = 10, units = "in")
+
+#### As above, but relative to day-ahead price
+p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
+                       trade_data[,.(dtm,team,revenue,actual_mwh,price)],by=c("dtm","team"),
+                       all.y = T) %>%
+  filter(team %in% top_teams) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
+  mutate(revenue_per_mwh = if_else(actual_mwh > 0, (revenue / actual_mwh) - price , NA_real_)) %>%
+  group_by(team) %>% 
+  mutate(binned_pinball = cut(x=pinball, breaks=c(0, 20, 40, 60, 80, 120, 300))) %>%
+  ungroup() %>%
+  tidyr::drop_na() %>%
+  ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
+  facet_wrap(~team, nrow = 5) +
+  geom_density_ridges(jittered_points = F, scale=1, alpha=0.4, 
+                      point_shape = "|", point_size = 2,
+                      position = position_points_jitter(height = 0),
+                      quantile_lines = TRUE, quantiles = c(.5)) +
+  scale_y_discrete(expand = c(0, 0)) +     
+  scale_x_continuous(expand = c(0, 0), limits = c(-30, 15)) +   
+  coord_cartesian(clip = "off") +
+  labs(
+    x = "Excess revenue [£/MWh]",
+    y = "Binned pinball loss [MWh]"
+  ) +
+  custom_theme
+p_excess_revvpinball
+ggsave(filename = paste0("figs/excess_revenue_vs_pinball.",fig_format), p_excess_revvpinball,
+       width = 8, height = 10, units = "in")
+
+
 
 ### Relative change in pinball loss compared to change in revenue
 
