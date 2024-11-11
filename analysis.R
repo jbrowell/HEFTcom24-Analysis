@@ -309,8 +309,8 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
-             trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
-             all.y = T) %>%
+                       trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
+                       all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   mutate(revenue_per_mwh = if_else(actual_mwh > 20, revenue / actual_mwh, NA_real_)) %>%
@@ -320,7 +320,7 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   tidyr::drop_na() %>%
   ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
   facet_wrap(~team, nrow = 5) +
-  geom_density_ridges(jittered_points = TRUE, scale=1, alpha=0.4, 
+  geom_density_ridges(jittered_points = F, scale=1, alpha=0.4, 
                       point_shape = "|", point_size = 2,
                       position = position_points_jitter(height = 0)) +
   scale_y_discrete(expand = c(0, 0)) +     
@@ -334,6 +334,37 @@ p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
 p_revvpinball
 ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
        width = 8, height = 10, units = "in")
+
+#### As above, but relative to day-ahead price
+p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
+                       trade_data[,.(dtm,team,revenue,actual_mwh,price)],by=c("dtm","team"),
+                       all.y = T) %>%
+  filter(team %in% top_teams) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
+  mutate(revenue_per_mwh = if_else(actual_mwh > 0, (revenue / actual_mwh) - price , NA_real_)) %>%
+  group_by(team) %>% 
+  mutate(binned_pinball = cut(x=pinball, breaks=c(0, 20, 40, 60, 80, 120, 300))) %>%
+  ungroup() %>%
+  tidyr::drop_na() %>%
+  ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
+  facet_wrap(~team, nrow = 5) +
+  geom_density_ridges(jittered_points = F, scale=1, alpha=0.4, 
+                      point_shape = "|", point_size = 2,
+                      position = position_points_jitter(height = 0),
+                      quantile_lines = TRUE, quantiles = c(.5)) +
+  scale_y_discrete(expand = c(0, 0)) +     
+  scale_x_continuous(expand = c(0, 0), limits = c(-30, 15)) +   
+  coord_cartesian(clip = "off") +
+  labs(
+    x = "Excess revenue [£/MWh]",
+    y = "Binned pinball loss [MWh]"
+  ) +
+  custom_theme
+p_excess_revvpinball
+ggsave(filename = paste0("figs/excess_revenue_vs_pinball.",fig_format), p_excess_revvpinball,
+       width = 8, height = 10, units = "in")
+
+
 
 ### Relative change in pinball loss compared to change in revenue
 
@@ -359,8 +390,8 @@ worst_revenue <- forecast_trade %>%
 
 p_percent_change <- forecast_trade %>% 
   arrange(desc(avg_pinball)) %>%
-  mutate(Pinball = round((avg_pinball - worst_pinball) / worst_pinball * 100, 2)) %>%
-  mutate(Revenue = round((revenue - worst_revenue) / worst_revenue * 100, 2)) %>%
+  mutate(Pinball = (worst_pinball-avg_pinball) / worst_pinball * 100) %>%
+  mutate(Revenue = (revenue - worst_revenue) / worst_revenue * 100) %>%
   tidyr::drop_na() %>%
   select(team, Pinball, Revenue) %>%
   tidyr::pivot_longer(!team, names_to = "Percentage change", values_to = "value") %>%
@@ -369,8 +400,8 @@ p_percent_change <- forecast_trade %>%
   geom_text(aes(label = value, vjust = ifelse(value > 0, -0.5, 1.5))) +
   scale_x_discrete(limits = rev(levels(top_teams_fc[1:(n_teams-1)]))) +
   custom_theme +
-  scale_fill_grey() +
-  labs(x="Team [-]", y="Percentage change [%]") +
+  scale_color_brewer(palette = "Set1", name="Performance metric") +
+  labs(x="Team [-]", y="Improvement [%]") +
   theme(axis.text.y = element_text(size=10),
         axis.text.x = element_text(angle=90,vjust = 0.5,
                                    hjust = 1, size=10),
@@ -399,7 +430,7 @@ p_capture_ratio <- trade_data %>%
   ggplot(., aes(x=hod, y=median_capture_ratio, color=factor(team), group=team, shape = factor(team))) +
   geom_line() +
   geom_point() +
-  scale_color_brewer(palette = "Set1", name="Team") +
+  scale_color_manual(values = color_pal_top10, name="Team") +
   scale_shape_discrete(name="Team") +
   scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
   custom_theme +
@@ -431,8 +462,8 @@ ggsave(filename = paste0("figs/price_spread_boxplot.",fig_format), p_spread, dev
 ### Market bids - actual_mwh vs revenue
 
 p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh)],
-      trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
-      all.y = T) %>%
+                           trade_data[,.(dtm, team, revenue, imbalance_price, price, market_bid)],by=c("dtm","team"),
+                           all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   filter(quantile == 50) %>%
@@ -495,7 +526,7 @@ p_strategic_vs_medianfc <- forecast_trade %>%
   filter(avg_pinball < 500)
 
 p_strategic_vs_medianfc[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1, optimal_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(trade_for_max_revenue),
-               by=c("dtm","team")]
+                        by=c("dtm","team")]
 
 p_strategic_vs_medianfc %>%
   filter(quantile == 50) %>%
@@ -530,7 +561,7 @@ p_strategic_vs_medianfc %>%
             sd_capture_ratio_pos_spread = sd(revenue[spread>=0]) / sd(max_revenue[spread>=0]),
             sd_capture_ratio_neg_spread = sd(revenue[spread<0]) / sd(max_revenue[spread<0]),
             sharpe_ratio = mean(revenue) / sd(revenue))
-  ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
+ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
   facet_wrap(~team, nrow = 5, scales = "fixed") +
   geom_point(alpha=0.25) +
   # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
