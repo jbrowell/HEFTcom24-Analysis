@@ -359,21 +359,23 @@ worst_revenue <- forecast_trade %>%
 
 p_percent_change <- forecast_trade %>% 
   arrange(desc(avg_pinball)) %>%
-  mutate(Pinball = (avg_pinball - worst_pinball) / worst_pinball * 100) %>%
-  mutate(Revenue = (revenue - worst_revenue) / worst_revenue * 100) %>%
+  mutate(Pinball = round((avg_pinball - worst_pinball) / worst_pinball * 100, 2)) %>%
+  mutate(Revenue = round((revenue - worst_revenue) / worst_revenue * 100, 2)) %>%
   tidyr::drop_na() %>%
   select(team, Pinball, Revenue) %>%
   tidyr::pivot_longer(!team, names_to = "Percentage change", values_to = "value") %>%
-  ggplot(., aes(x=team, y=value, color=`Percentage change`, group=`Percentage change`)) +
-  geom_line() +
+  ggplot(., aes(x=team, y=value, fill=`Percentage change`, group=`Percentage change`)) +
+  geom_col() +
+  geom_text(aes(label = value, vjust = ifelse(value > 0, -0.5, 1.5))) +
   scale_x_discrete(limits = rev(levels(top_teams_fc[1:(n_teams-1)]))) +
   custom_theme +
-  scale_color_brewer(palette = "Set1", name="Performance metric") +
+  scale_fill_grey() +
   labs(x="Team [-]", y="Percentage change [%]") +
   theme(axis.text.y = element_text(size=10),
         axis.text.x = element_text(angle=90,vjust = 0.5,
                                    hjust = 1, size=10),
         legend.title = element_blank())
+p_percent_change
 ggsave(filename = paste0("figs/percent_change.",fig_format), p_percent_change,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
