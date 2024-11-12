@@ -337,16 +337,20 @@ ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
 
 #### As above, but relative to day-ahead price
 p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
-                       trade_data[,.(dtm,team,revenue,actual_mwh,price)],by=c("dtm","team"),
+                       trade_data[,.(dtm,team,revenue,actual_mwh,price,imbalance_price)],by=c("dtm","team"),
                        all.y = T) %>%
   filter(team %in% top_teams) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
-  mutate(revenue_per_mwh = if_else(actual_mwh > 0, (revenue / actual_mwh) - price , NA_real_)) %>%
+  mutate(spread = imbalance_price - price,
+         trade_for_max_revenue = actual_mwh - spread/0.14,
+         max_revenue = trade_for_max_revenue*price + (actual_mwh - trade_for_max_revenue) * (imbalance_price - 0.07*(actual_mwh - trade_for_max_revenue)),
+         excess_revenue = revenue - max_revenue,
+         excess_revenue_per_mwh = if_else(actual_mwh > 0, (excess_revenue / actual_mwh) , NA_real_)) %>%
   group_by(team) %>% 
   mutate(binned_pinball = cut(x=pinball, breaks=c(0, 20, 40, 60, 80, 120, 300))) %>%
   ungroup() %>%
   tidyr::drop_na() %>%
-  ggplot(aes(x=revenue_per_mwh, y=binned_pinball)) +
+  ggplot(aes(x=excess_revenue_per_mwh, y=binned_pinball)) +
   facet_wrap(~team, nrow = 5) +
   geom_density_ridges(jittered_points = F, scale=1, alpha=0.4, 
                       point_shape = "|", point_size = 2,
@@ -361,7 +365,7 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   ) +
   custom_theme
 p_excess_revvpinball
-ggsave(filename = paste0("figs/excess_revenue_vs_pinball.",fig_format), p_excess_revvpinball,
+ggsave(filename = paste0("figs/excess_revenue_from_optimal_trade_vs_pinball.",fig_format), p_excess_revvpinball,
        width = 8, height = 10, units = "in")
 
 
