@@ -105,9 +105,12 @@ ggsave(filename = paste0("figs/revenue_top10.",fig_format),p,
 
 ## Pinball evolution
 top_teams_fc <- forecast_score[,mean(pinball),by=team][order(V1,decreasing = F)][1:10,team]
+forecast_score <- forecast_score[team %in% top_teams_fc]
 setkey(forecast_score,dtm)
 
 forecast_score[,n:=as.numeric((dtm-min(dtm))/(60*30)+1)]
+
+forecast_score$team <- factor(forecast_score$team,levels = top_teams_fc)
 
 p2 <- ggplot(forecast_score[team %in% top_teams_fc,.(dtm,pinball=cumsum(pinball)/n),by=team],
              aes(x=dtm,y=pinball,color=team)) +
