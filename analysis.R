@@ -130,15 +130,19 @@ top_teams_fc
 
 team_include <- forecast_data[,.N,by=team][N>(39000/2),team]
 
+# include_dtm <- energy_data[dtm>"2024-03-20 00:00:00",dtm] 
+# include_dtm <- energy_data[DA_Price>=0,dtm]
+include_dtm <- energy_data[,dtm]
+
 reliability_data <- rbind(
-  forecast_data[,.(empirical = 100*mean(actual_mwh<=forecast),
+  forecast_data[dtm %in% include_dtm,.(empirical = 100*mean(actual_mwh<=forecast),
                    TOD = "All"),
                 by=c("team","quantile")],
-  forecast_data[hour(dtm)<=7.5 | hour(dtm)>=16.5,
+  forecast_data[(hour(dtm)<=7.5 | hour(dtm)>=16.5) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Overnight"),
                 by=c("team","quantile")],
-  forecast_data[hour(dtm)>7.5 & hour(dtm)<16.5,
+  forecast_data[(hour(dtm)>7.5 & hour(dtm)<16.5) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Daytime"),
                 by=c("team","quantile")])
