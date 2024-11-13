@@ -31,7 +31,7 @@ leaderboard <- fread("data/overall_leaderboard.csv")
 leaderboard[15,Team:="Faces"]
 
 ### Repot data
-reports <- fread("data/HEFTcom Reports_May 29, 2024_11.54.csv",
+reports <- fread("data/HEFTcom Reports.csv",
                  skip = 0,header = T)[-(1:2),]
 reports[9,RecipientFirstName:="Faces"]
 setnames(reports,"RecipientFirstName","team")
@@ -104,15 +104,20 @@ ggsave(filename = paste0("figs/revenue_top10.",fig_format),p,
 
 
 ## Pinball evolution
-top_teams_fc <- forecast_score[,mean(pinball),by=team][order(V1,decreasing = F)][1:10,team]
-forecast_score <- forecast_score[team %in% top_teams_fc]
-setkey(forecast_score,dtm)
 
-forecast_score[,n:=as.numeric((dtm-min(dtm))/(60*30)+1)]
+forecast_score_plot <- forecast_score[dtm < "2024-03-21 00:00:00"]
 
-forecast_score$team <- factor(forecast_score$team,levels = top_teams_fc)
+top_teams_fc <- forecast_score_plot[,mean(pinball),by=team][order(V1,decreasing = F)][1:10,team]
 
-p2 <- ggplot(forecast_score[team %in% top_teams_fc,.(dtm,pinball=cumsum(pinball)/n),by=team],
+forecast_score_plot <- forecast_score_plot[team %in% top_teams_fc]
+
+setkey(forecast_score_plot,dtm)
+
+forecast_score_plot[,n:=as.numeric((dtm-min(dtm))/(60*30)+1)]
+
+forecast_score_plot$team <- factor(forecast_score_plot$team,levels = top_teams_fc)
+
+p2 <- ggplot(forecast_score_plot[,.(dtm,pinball=cumsum(pinball)/n),by=team],
              aes(x=dtm,y=pinball,color=team)) +
   geom_line() +
   xlab("Date/Time") + ylab("Pinball [MWh]") +
@@ -180,12 +185,14 @@ ggsave(filename = paste0("figs/reliability.",fig_format), rel_plot,
 plot_data <- merge(rbind(reports[,.(type="regression",
                                     method=transpose(strsplit(Q3.7,","))),by=team],
                          reports[,.(type="feature engineering",
-                                    method=transpose(strsplit(Q3.5,","))),by=team]),
+                                    method=transpose(strsplit(Q3.5,","))),by=team],
+                         reports[,.(type="model selection",
+                                    method=transpose(strsplit(Q3.9,","))),by=team]),
                    leaderboard[,.(team=Team,Rank=rank(Pinball))],
                    by = "team",all.y = T)
 
 plot_data[,method := paste0(method)]
-plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL")]
+plot_data <- plot_data[!method %in% c("None","Others ","Others (please specify)","Other supervised learning/regression","NULL")]
 
 plot_data[,method := gsub("\\(please provide details\\)","",method)]
 plot_data[,method := gsub(" based on",":",method)]
@@ -217,7 +224,7 @@ fc_methods <- ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
 fc_methods
 
 ggsave(filename = paste0("figs/forecast_methods.",fig_format), fc_methods,
-       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+       width = fig_size_in[1],height = fig_size_in[2]+0.2,units = "in")
 
 
 
