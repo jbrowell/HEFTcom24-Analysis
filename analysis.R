@@ -4,6 +4,7 @@ require(rstudioapi)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 require(ggplot2)
 require(ggridges)
+require(xtable)
 
 ## Fig format
 fig_format <- "pdf"
@@ -350,14 +351,14 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   mutate(binned_pinball = cut(x=pinball, breaks=c(0, 20, 40, 60, 80, 120, 300))) %>%
   ungroup() %>%
   tidyr::drop_na() %>%
-  ggplot(aes(x=excess_revenue_per_mwh, y=binned_pinball,height = ..density..)) +
+  ggplot(aes(x=excess_revenue_per_mwh, y=binned_pinball,height = after_stat(density))) +
   facet_wrap(~team, nrow = 5) +
   geom_density_ridges(
     stat="density",
     bw=1,
     bounds = c(-Inf, 0)) +
   scale_y_discrete(expand = c(0, 0)) +     
-  scale_x_continuous(expand = c(0, 0), limits = c(-22, 1)) +   
+  scale_x_continuous(expand = c(0, 0), limits = c(-22, 1)) +
   coord_cartesian(clip = "off") +
   labs(
     x = "Opportunity cost [£/MWh]",
@@ -584,3 +585,27 @@ p_strategic_vs_medianfc
 
 ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
        width = 8, height = 10, units = "in")
+
+### Table with trade statistics
+
+top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
+
+latex_table <- trade_data %>% 
+  filter(team %in% top_teams) %>%
+  mutate(team = factor(team, levels=top_teams)) %>%
+  group_by(team) %>%
+  summarise(#`Total revenue` = sum(revenue),
+            `Win rate [-]` = mean(as.integer(revenue > 0)),
+            `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
+            `VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
+            `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
+            `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
+            `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
+            `VaR [GBP]` = quantile(revenue, probs = 0.05),
+            `ES [GBP]` = mean(if_else(revenue <= `VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
+  xtable(.)
+print(latex_table, type = "latex", include.rownames = FALSE,
+      sanitize.text.function = identity,
+      add.to.row = list(pos = list(0), command = '\\resizebox{\\textwidth}{!}{')
+)
+
