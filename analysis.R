@@ -353,12 +353,12 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   tidyr::drop_na() %>%
   ggplot(aes(x=excess_revenue_per_mwh, y=binned_pinball,height = after_stat(density))) +
   facet_wrap(~team, nrow = 5) +
-  geom_density_ridges(
-    stat="density",
-    bw=1,
-    bounds = c(-Inf, 0)) +
+  stat_density_ridges(
+    geom = "density_ridges_gradient",
+    quantile_lines = T,
+    quantiles = 0.5) +
   scale_y_discrete(expand = c(0, 0)) +     
-  scale_x_continuous(expand = c(0, 0), limits = c(-22, 1)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(-22, 0)) +
   coord_cartesian(clip = "off") +
   labs(
     x = "Opportunity cost [£/MWh]",
