@@ -5,6 +5,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 require(ggplot2)
 require(ggridges)
 require(xtable)
+library(latex2exp)
+
 
 ## Fig format
 fig_format <- "pdf"
@@ -18,12 +20,15 @@ color_pal_top10 <- RColorBrewer::brewer.pal(10,"Paired")
 
 ### Trades, prices and revenue, with missed submissions filled
 trade_data <- fread("data/trades.csv")
+trade_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
 
 ### Pinball score by timestamp with missed submissions filled
 forecast_score <- fread("data/pinball.csv")
+forecast_score[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
 
 ### Raw forecast submissions, outturn and pinball, missed submissions not filled
 forecast_data <- fread("data/forecasts.csv")
+forecast_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
 
 ### Energy data
 energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
@@ -31,12 +36,12 @@ energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
 
 ### leaderboard
 leaderboard <- fread("data/overall_leaderboard.csv")
-leaderboard[15,Team:="Faces"]
+leaderboard[Team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",Team:="Please hug"]
 
 ### Repot data
 reports <- fread("data/HEFTcom Reports.csv",
                  skip = 0,header = T)[-(1:2),]
-reports[9,RecipientFirstName:="Faces"]
+reports[9,RecipientFirstName:="Please hug"]
 setnames(reports,"RecipientFirstName","team")
 
 ## Plots
@@ -81,21 +86,26 @@ ggsave(filename = paste0("figs/prices.",fig_format), p_price,
 
 
 ### Revenue evolution:
-top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
+top_teams_rev <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 
-
-mean10 <- trade_data[team%in%top_teams,.(mean10_revenue=mean(revenue)),by=dtm]
+mean10 <- trade_data[team%in%top_teams_rev,.(mean10_revenue=mean(revenue)),by=dtm]
 mean10[order(dtm),mean10_cumrevenue := cumsum(mean10_revenue)]
 
-trade_data <- merge(trade_data,mean10,by="dtm",all.x=T)
+trade_data_plot <- merge(trade_data,mean10,by="dtm",all.x=T)
 
-setkey(trade_data,dtm)
-p <- ggplot(trade_data[team %in% top_teams,.(dtm,rel_revenue=(cumsum(revenue)-mean10_cumrevenue)/1e6),by=team],
+
+trade_data_plot <- trade_data_plot[team %in% top_teams_rev]
+trade_data_plot$team <- factor(trade_data_plot$team,levels = top_teams_rev)
+
+setkey(trade_data_plot,dtm)
+p <- ggplot(trade_data_plot[,
+                            .(dtm,rel_revenue=(cumsum(revenue)-mean10_cumrevenue)/1e6),
+                            by=team],
             aes(x=dtm,y=rel_revenue,color=team)) +
   geom_line() +
   xlab("Date/Time") + ylab("Relative Revenue of Top 10 [£m]") +
   guides(color=guide_legend(title="Team (Top 10)")) +
-  scale_color_discrete(breaks=top_teams) +
+  scale_color_discrete(breaks=top_teams_rev) +
   scale_color_manual(values = color_pal_top10) +
   custom_theme
 
@@ -108,17 +118,15 @@ ggsave(filename = paste0("figs/revenue_top10.",fig_format),p,
 
 ## Pinball evolution
 
-forecast_score_plot <- forecast_score[dtm < "2024-03-21 00:00:00"]
+forecast_score_plot <- forecast_score#[dtm < "2024-03-21 00:00:00"]
 
 top_teams_fc <- forecast_score_plot[,mean(pinball),by=team][order(V1,decreasing = F)][1:10,team]
-
 forecast_score_plot <- forecast_score_plot[team %in% top_teams_fc]
-
 setkey(forecast_score_plot,dtm)
+forecast_score_plot$team <- factor(forecast_score_plot$team,levels = top_teams_fc)
 
 forecast_score_plot[,n:=as.numeric((dtm-min(dtm))/(60*30)+1)]
 
-forecast_score_plot$team <- factor(forecast_score_plot$team,levels = top_teams_fc)
 
 p2 <- ggplot(forecast_score_plot[,.(dtm,pinball=cumsum(pinball)/n),by=team],
              aes(x=dtm,y=pinball,color=team)) +
@@ -147,7 +155,7 @@ include_dtm <- energy_data[,dtm]
 
 reliability_data <- rbind(
   forecast_data[dtm %in% include_dtm,.(empirical = 100*mean(actual_mwh<=forecast),
-                   TOD = "All"),
+                                       TOD = "All"),
                 by=c("team","quantile")],
   forecast_data[(hour(dtm)<=7.5 | hour(dtm)>=16.5) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
@@ -282,13 +290,15 @@ ggsave(filename = paste0("figs/trade_methods.",fig_format), trade_methods,
 ### Trades vs Forecasts
 
 forecast_trade <- merge(forecast_data,
-                        trade_data[,.(dtm,team,market_bid,imbalance_price,price)],by=c("dtm","team"),
+                        trade_data[,.(dtm,team,market_bid,imbalance_price,price)],
+                        by=c("dtm","team"),
                         all.y = T)
 
 forecast_trade[,unique_forecasts:=length(unique(forecast)),
                by=c("dtm","team")]
 
-forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
+forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,
+               bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
                by=c("dtm","team")]
 
 ggplot(data = forecast_trade[quantile==50],
@@ -302,8 +312,9 @@ ggplot(data = forecast_trade[quantile==50],
   labs(y = "Counts",x="Bid Quantile [%]") + 
   guides(y = "none")
 
-plot_data <- forecast_trade[quantile==50 & team%in%top_teams]
-plot_data$team <- factor(plot_data$team,levels = top_teams)
+plot_data <- forecast_trade[quantile==50 & team%in%top_teams_rev]
+plot_data$team <- factor(plot_data$team,levels = top_teams_rev)
+
 p_bidq <-  ggplot(data = plot_data,
                   aes(x=bid_quantile)) +
   geom_histogram() +
@@ -315,9 +326,56 @@ p_bidq <-  ggplot(data = plot_data,
   guides(y = "none") +
   theme(strip.text.x = element_text(size = 10))
 
+p_bidq
 
 ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+plot_data[,bid_q50vol := market_bid-forecast]
+p_bid_q50vol <-  ggplot(data = plot_data,
+                        aes(x=bid_q50vol)) +
+  geom_histogram() +
+  facet_wrap(~team,ncol=5,scales = "free_y") +
+  # # scale_fill_manual(values = color_pal_top10) +
+  xlim(c(-150,150)) +
+  ylab("Counts") +
+  xlab(TeX("Bid over $q_{50\\%}$ [MWh]")) +
+  guides(y = "none") +
+  custom_theme +
+  theme(strip.text.x = element_text(size = 10))
+
+p_bid_q50vol
+
+ggsave(filename = paste0("figs/bid_q50vol.",fig_format), p_bid_q50vol,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+merge(
+  plot_data[,
+            .(actual_hit_rate = round(
+              100*mean(
+                ((market_bid>actual_mwh) & (price>imbalance_price)) |
+                  ((market_bid<actual_mwh) & (price<imbalance_price))),
+              digits = 1),
+              q50_hit_rate = round(
+                100*mean(
+                  ((forecast>actual_mwh) & (price>imbalance_price)) |
+                    ((forecast<actual_mwh) & (price<imbalance_price))),
+                digits = 1)
+            ),by="team"],
+  plot_data[bid_q50vol!=0,
+            .(strategic_bid_hit_rate = round(
+              100*mean(
+                ((bid_q50vol>0) & (price>imbalance_price)) |
+                  ((bid_q50vol<0) & (price<imbalance_price))),
+              digits = 1),
+              number_of_strategic_bids=sum(bid_q50vol!=0)
+            ),by="team"]
+)[order(team)]
+
+
+
 
 ### Revenue vs pinball loss
 
@@ -380,7 +438,8 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   ) +
   custom_theme
 p_excess_revvpinball
-ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format), p_excess_revvpinball,
+ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format),
+       p_excess_revvpinball,
        width = 8, height = 10, units = "in")
 
 
@@ -430,11 +489,9 @@ ggsave(filename = paste0("figs/percent_change.",fig_format), p_percent_change,
 
 ### Capture ratio as a function of time of day
 
-top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:5,team]
-
 p_capture_ratio <- trade_data %>%
   select(dtm, actual_mwh, market_bid, revenue, team, price, imbalance_price) %>%
-  filter(team %in% top_teams) %>%
+  filter(team %in% top_teams_rev) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   mutate(spread = imbalance_price - price,
          trade_for_max_revenue = actual_mwh - spread/0.14,
@@ -453,6 +510,8 @@ p_capture_ratio <- trade_data %>%
   scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
   custom_theme +
   labs(x="Time of day [30 min]", y="Median capture ratio [-]")
+
+p_capture_ratio
 
 ggsave(filename = paste0("figs/capture_ratio.",fig_format), p_capture_ratio,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
@@ -498,13 +557,16 @@ p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actua
   ) +
   custom_theme
 
-ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marketbids,
-       width = 8, height = 10, units = "in")
+p_revv_marketbids
+
+# ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marketbids,
+# width = 8, height = 10, units = "in")
 
 ### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
 
 forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh, pinball)],
-                        trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],by=c("dtm", "team"),
+                        trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],
+                        by=c("dtm", "team"),
                         all.y = T)
 
 forecast_trade[,unique_forecasts:=length(unique(forecast)),
@@ -597,26 +659,25 @@ ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
 
 p_strategic_vs_medianfc
 
-ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
-       width = 8, height = 10, units = "in")
+# ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
+#        width = 8, height = 10, units = "in")
 
 ### Table with trade statistics
 
-top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 
 latex_table <- trade_data %>% 
-  filter(team %in% top_teams) %>%
-  mutate(team = factor(team, levels=top_teams)) %>%
+  filter(team %in% top_teams_rev) %>%
+  mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
-            `Win rate [-]` = mean(as.integer(revenue > 0)),
-            `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
-            `VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
-            `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
-            `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
-            `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
-            `VaR [GBP]` = quantile(revenue, probs = 0.05),
-            `ES [GBP]` = mean(if_else(revenue <= `VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
+    `Win rate [-]` = mean(as.integer(revenue > 0)),
+    `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
+    `VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
+    `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
+    `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
+    `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
+    `VaR [GBP]` = quantile(revenue, probs = 0.05),
+    `ES [GBP]` = mean(if_else(revenue <= `VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
   xtable(.)
 print(latex_table, type = "latex", include.rownames = FALSE,
       sanitize.text.function = identity,
