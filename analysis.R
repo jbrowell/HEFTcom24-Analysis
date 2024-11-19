@@ -94,7 +94,7 @@ mean10[order(dtm),mean10_cumrevenue := cumsum(mean10_revenue)]
 trade_data_plot <- merge(trade_data,mean10,by="dtm",all.x=T)
 
 
-trade_data_plot <- trade_data_plot[team %in% top_teams_rev]
+trade_data_plot <- trade_data_plot[team %in% top_teams_rev]#[dtm > "2024-03-01"]
 trade_data_plot$team <- factor(trade_data_plot$team,levels = top_teams_rev)
 
 setkey(trade_data_plot,dtm)
@@ -103,7 +103,7 @@ p <- ggplot(trade_data_plot[,
                             by=team],
             aes(x=dtm,y=rel_revenue,color=team)) +
   geom_line() +
-  xlab("Date/Time") + ylab("Relative Revenue of Top 10 [£m]") +
+  xlab("Date/Time") + ylab("Relative Revenue [£m]") +
   guides(color=guide_legend(title="Team (Top 10)")) +
   scale_color_discrete(breaks=top_teams_rev) +
   scale_color_manual(values = color_pal_top10) +
@@ -290,9 +290,10 @@ ggsave(filename = paste0("figs/trade_methods.",fig_format), trade_methods,
 ### Trades vs Forecasts
 
 forecast_trade <- merge(forecast_data,
-                        trade_data[,.(dtm,team,market_bid,imbalance_price,price)],
+                        trade_data[,.(dtm,team,market_bid=floor(market_bid),imbalance_price,price)],
                         by=c("dtm","team"),
                         all.y = T)
+
 
 forecast_trade[,unique_forecasts:=length(unique(forecast)),
                by=c("dtm","team")]
@@ -333,14 +334,14 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 
 
 plot_data[,bid_q50vol := market_bid-forecast]
-p_bid_q50vol <-  ggplot(data = plot_data,
+p_bid_q50vol <-  ggplot(data = plot_data,#[dtm>"2024-03-20 00:00:00"],
                         aes(x=bid_q50vol)) +
   geom_histogram() +
   facet_wrap(~team,ncol=5,scales = "free_y") +
   # # scale_fill_manual(values = color_pal_top10) +
   xlim(c(-150,150)) +
   ylab("Counts") +
-  xlab(TeX("Bid over $q_{50\\%}$ [MWh]")) +
+  xlab(TeX("Strategic bid $x - \\hat{q}_{50\\%}$ [MWh]",)) +
   guides(y = "none") +
   custom_theme +
   theme(strip.text.x = element_text(size = 10))
@@ -371,16 +372,20 @@ merge(
                   ((bid_q50vol<0) & (price<imbalance_price))),
               digits = 1),
               number_of_strategic_bids=sum(bid_q50vol!=0)
-            ),by="team"]
+            ),by="team"],all = T,
 )[order(team)]
 
 
+hist(plot_data[team=="SVK",(imbalance_price-price)/0.14],xlim = c(-500,500),breaks = 100)
+hist(plot_data[team=="SVK",market_bid-forecast],xlim = c(-500,500),breaks = 100)
+
+plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-forecast)]
+plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 
 
 ### Revenue vs pinball loss
 
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
-
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
                        trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
                        all.y = T) %>%
@@ -412,7 +417,7 @@ ggsave(filename = paste0("figs/revenue_vs_pinball.",fig_format), p_revvpinball,
 p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
                               trade_data[,.(dtm,team,revenue,actual_mwh,price,imbalance_price)],by=c("dtm","team"),
                               all.y = T) %>%
-  filter(team %in% top_teams) %>%
+  filter(team %in% top_teams_rev) %>%
   mutate(team = factor(team, levels=top_teams)) %>%
   mutate(spread = imbalance_price - price,
          trade_for_max_revenue = actual_mwh - spread/0.14,
@@ -424,23 +429,27 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
   ungroup() %>%
   tidyr::drop_na() %>%
   ggplot(aes(x=excess_revenue_per_mwh, y=binned_pinball,height = after_stat(density))) +
-  facet_wrap(~team, nrow = 5) +
+  facet_wrap(~team, nrow = 2) +
   stat_density_ridges(
     geom = "density_ridges_gradient",
     quantile_lines = T,
     quantiles = 0.5) +
   scale_y_discrete(expand = c(0, 0)) +     
-  scale_x_continuous(expand = c(0, 0), limits = c(-22, 0)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(-25, 0), breaks = c(0,-10,-20)) +
   coord_cartesian(clip = "off") +
   labs(
     x = "Opportunity cost [£/MWh]",
     y = "Binned pinball loss [MWh]"
   ) +
-  custom_theme
+  custom_theme +
+  theme(strip.text.x = element_text(size = 10))
+
 p_excess_revvpinball
-ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format),
-       p_excess_revvpinball,
-       width = 8, height = 10, units = "in")
+ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball_v2.",fig_format),
+        p_excess_revvpinball,width = fig_size_in[1],height = fig_size_in[2], units = "in")
+# ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format),
+#        p_excess_revvpinball,
+#        width = 8, height = 10, units = "in")
 
 
 
@@ -518,22 +527,32 @@ ggsave(filename = paste0("figs/capture_ratio.",fig_format), p_capture_ratio,
 
 ### Price spreads
 
+trade_data[,dtm_GB:=copy(dtm)]
+attr(trade_data$dtm_GB, "tzone") <- "Europe/London"
+trade_data[,sp:=1+2*difftime(dtm_GB,as.POSIXct(as.Date(dtm_GB)),units = "hours")]
+
 p_spread <- trade_data %>%
   filter(team == "SVK") %>%
-  mutate(spread = imbalance_price - price,
-         tod = strftime(dtm, format="%H:%M")) %>%
-  select(tod, price, imbalance_price) %>%
-  rename(`Day-ahead price`=price, `Imbalance price`=imbalance_price) %>%
+  mutate(Spread = imbalance_price - price,
+         # tod = strftime(dtm_GB, format="%H:%M")) %>%
+         tod = as.factor(sp)) %>%
+  # select(tod, price, imbalance_price,Spread) %>%
+  # rename(`Day-ahead price`=price, `Imbalance price`=imbalance_price) %>%
+  select(tod, price,Spread) %>%
+  rename(`Day-ahead price`=price) %>%
   tidyr::pivot_longer(!tod, names_to = "price", values_to = "value") %>%
   ggplot(., aes(x=tod, y=value)) +
   geom_boxplot() +
-  facet_wrap(~price, nrow = 1, scales = "fixed") +
-  scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
-  labs(y="Price [£/MWh]", x="Time of day [30 min]") +
+  facet_wrap(~price, nrow = 1, scales = "free_y") +
+  scale_x_discrete(breaks=~ .x[seq(0, length(.x), 12)]) +
+  labs(y="Price [£/MWh]", x="Time of day [settlement period]") +
   custom_theme
 
 p_spread
-ggsave(filename = paste0("figs/price_spread_boxplot.",fig_format), p_spread, device = cairo_pdf,
+
+ggsave(filename = paste0("figs/price_spread_boxplot.",fig_format),
+       p_spread,
+       device = cairo_pdf,
        width = fig_size_in[1], height = fig_size_in[2], units = "in")
 
 ### Market bids - actual_mwh vs revenue
