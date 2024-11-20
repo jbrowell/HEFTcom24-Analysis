@@ -21,14 +21,17 @@ color_pal_top10 <- RColorBrewer::brewer.pal(10,"Paired")
 ### Trades, prices and revenue, with missed submissions filled
 trade_data <- fread("data/trades.csv")
 trade_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
+trade_data[team=="Ihubex",verified_student:=TRUE]
 
 ### Pinball score by timestamp with missed submissions filled
 forecast_score <- fread("data/pinball.csv")
 forecast_score[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
+forecast_score[team=="Ihubex",verified_student:=TRUE]
 
 ### Raw forecast submissions, outturn and pinball, missed submissions not filled
 forecast_data <- fread("data/forecasts.csv")
 forecast_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
+forecast_data[team=="Ihubex",verified_student:=TRUE]
 
 ### Energy data
 energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
@@ -43,6 +46,29 @@ reports <- fread("data/HEFTcom Reports.csv",
                  skip = 0,header = T)[-(1:2),]
 reports[9,RecipientFirstName:="Please hug"]
 setnames(reports,"RecipientFirstName","team")
+
+## Leaderboard
+full_leaderboard <- merge(
+  forecast_score[,.(Pinball=round(mean(pinball),2),
+                    Report=report[1],
+                    Student=verified_student[1]),
+                 by="team"],
+  trade_data[,.(Revenue=round(sum(revenue)/1e6,2),
+                `Missed submissions`=round(sum(filled)/48)),
+             by="team"],
+  by="team",all=T)
+
+full_leaderboard[Report==T & `Missed submissions`<=5 & !team %in% c("Benchmark","quantopia"),
+                 `Forecasting rank`:=rank(Pinball)]
+full_leaderboard[Report==T & `Missed submissions`<=5 & !team %in% c("Benchmark","quantopia")
+                 ,`Trading rank`:=rank(-Revenue)]
+full_leaderboard[,`Combined score`:=`Trading rank`+`Forecasting rank`+`Forecasting rank`/100]
+full_leaderboard[!is.na(`Combined score`),`Combined rank`:=rank(`Combined score`)]
+full_leaderboard[,`Combined score`:=NULL]
+
+full_leaderboard <- full_leaderboard[order(Pinball),.(Team=team,Pinball,Revenue,`Forecasting rank`,`Trading rank`,`Combined rank`,Report,`Missed submissions`,Student)]
+
+print(xtable(full_leaderboard), include.rownames=FALSE)
 
 ## Plots
 
@@ -446,7 +472,7 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
 
 p_excess_revvpinball
 ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball_v2.",fig_format),
-        p_excess_revvpinball,width = fig_size_in[1],height = fig_size_in[2], units = "in")
+       p_excess_revvpinball,width = fig_size_in[1],height = fig_size_in[2], units = "in")
 # ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format),
 #        p_excess_revvpinball,
 #        width = 8, height = 10, units = "in")
