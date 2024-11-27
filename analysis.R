@@ -6,7 +6,7 @@ require(ggplot2)
 require(ggridges)
 require(xtable)
 library(latex2exp)
-
+require(patchwork)
 
 ## Fig format
 fig_format <- "pdf"
@@ -16,7 +16,7 @@ custom_theme <- theme_bw() + theme(
   strip.background =element_rect(fill="white"))
 color_pal_top10 <- RColorBrewer::brewer.pal(10,"Paired")
 
-## load data
+## Load data
 
 ### Trades, prices and revenue, with missed submissions filled
 trade_data <- fread("data/trades.csv")
@@ -69,6 +69,7 @@ full_leaderboard[,`Combined score`:=NULL]
 full_leaderboard <- full_leaderboard[order(Pinball),.(Team=team,Pinball,Revenue,`Forecasting rank`,`Trading rank`,`Combined rank`,Report,`Missed submissions`,Student)]
 
 print(xtable(full_leaderboard), include.rownames=FALSE)
+
 
 ## Plots
 
@@ -170,8 +171,6 @@ ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 ### Forecast evaluation
-
-top_teams_fc
 
 team_include <- forecast_data[,.N,by=team][N>(39000/2),team]
 
@@ -411,6 +410,39 @@ plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 
 ### Revenue vs pinball loss
 
+### Plot Pinball vs Revenue
+
+## Strategic bidders:
+
+inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
+                aes(x=Pinball,y=Revenue)) +
+  geom_point() +
+  scale_x_continuous(limits=c(20,65),breaks=c(20,65)) +
+  scale_y_continuous(limits=c(77,90),breaks=c(80,90)) +
+  custom_theme +
+  theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_blank(),#element_rect(fill = gray(0.9)),
+        panel.background = element_rect(fill = gray(0.9,alpha = 0.5))) +
+  guides(shape="none")
+
+pinball_vs_rev <- ggplot(full_leaderboard[Pinball<40 & Revenue,],
+                         aes(x=Pinball,y=Revenue)) +
+  geom_point() +
+  xlab("Pinball [MWh]") +
+  ylab("Revenue [£m]") +
+  custom_theme +
+  inset_element(inset, 0.57, 0.55, 0.96, 0.96)
+
+pinball_vs_rev
+
+ggsave(filename = paste0("figs/pinball_vs_rev.",fig_format), pinball_vs_rev,
+       width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
+
+### Densities
+
 top_teams <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
 p_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
                        trade_data[,.(dtm,team,revenue,actual_mwh)],by=c("dtm","team"),
@@ -617,95 +649,22 @@ forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_m
 forecast_trade[,unique_forecasts:=length(unique(forecast)),
                by=c("dtm","team")]
 
-forecast_trade[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1,bid_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(market_bid),
-               by=c("dtm","team")]
+forecast_trade[,bid_as_forecast := forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))]
 
-p_strategic_vs_medianfc <- forecast_trade %>%
-  filter(team %in% top_teams) %>%
-  mutate(team = factor(team, levels=top_teams)) %>%
-  filter(quantile == 50) %>%
-  mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
-  ggplot(., aes(x=bid_as_forecast, y=revenue, color=bid_quantile)) +
-  facet_wrap(~team, nrow = 5, scales = "fixed") +
-  geom_point(alpha=0.5) +
-  geom_abline(slope=1, intercept=0, linetype="dashed", color="black") +
-  scale_color_viridis_c(name = "Bid quantile (%)") +
-  labs(
-    y = "Revenue from bidding strategically (GBP)",
-    x = "Revenue from bidding median forecast (GBP)"
-  ) +
-  custom_theme +
-  theme(legend.key.height = unit(0.75,"lines"),
-        legend.position = "bottom",
-        legend.justification = "center")
+plot_data <- forecast_trade[quantile==50,.(Revenue=sum(revenue)/1e6,
+                                           `Revenue (q50)`=sum(bid_as_forecast)/1e6,
+                                           Pinball=mean(pinball)),by="team"]
 
-p_strategic_vs_medianfc <- forecast_trade %>%
-  tidyr::drop_na() %>%
-  filter(team %in% top_teams) %>%
-  mutate(team = factor(team, levels=top_teams)) %>%
-  mutate(spread = imbalance_price - price) %>%
-  mutate(trade_for_max_revenue = actual_mwh - spread/0.14) %>%
-  group_by(dtm, team) %>%
-  mutate(avg_pinball = mean(pinball)) %>%
-  ungroup() %>%
-  filter(avg_pinball < 500)
+plot_data[,Gain:=Revenue - `Revenue (q50)`]
+plot_data[order(Gain,decreasing = T)][Revenue>84]
 
-p_strategic_vs_medianfc[!is.na(quantile) & !is.na(forecast) & unique_forecasts>1, optimal_quantile:=approxfun(x=forecast,y=quantile,rule = 2)(trade_for_max_revenue),
-                        by=c("dtm","team")]
+ggplot(plot_data[Pinball<40 & Revenue>75],
+       aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
+  geom_errorbar() +
+  geom_point(aes(y=Revenue),shape=15,color="green") +
+  geom_point(aes(y=`Revenue (q50)`),shape=3,color="red") +
+  custom_theme
 
-p_strategic_vs_medianfc %>%
-  filter(quantile == 50) %>%
-  # mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
-  # mutate(revenue_diff = revenue - bid_as_forecast) %>%
-  mutate(max_revenue = trade_for_max_revenue*price + (actual_mwh - trade_for_max_revenue) * (imbalance_price - 0.07*(actual_mwh - trade_for_max_revenue))) %>%
-  ggplot(., aes(x=log(max_revenue - revenue), y=avg_pinball, color=bid_quantile)) + #)) +
-  facet_wrap(~team, nrow = 5, scales = "fixed") +
-  geom_point(alpha=0.25) +
-  # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
-  geom_vline(xintercept = log(2e-6), color="red", linetype="dashed") +
-  scale_color_viridis_c(name = "Bid quantile (%)") +
-  # labs(
-  #   y = "Market bid minus trade volume that maximizes revenue (MWh)", # "Revenue from bidding strategically - Revenue from bidding median forecast (GBP)",
-  #   x = "Price spread (GBP/MWh)" # "Revenue from bidding median forecast (GBP)"
-  # ) +
-  custom_theme +
-  theme(legend.key.height = unit(0.75,"lines"),
-        legend.position = "bottom",
-        legend.justification = "center")
-
-p_strategic_vs_medianfc %>%
-  filter(quantile == 50) %>%
-  mutate(bid_as_forecast = forecast*price + (actual_mwh - forecast) * (imbalance_price - 0.07*(actual_mwh - forecast))) %>%
-  # mutate(revenue_diff = revenue - bid_as_forecast) %>%
-  mutate(max_revenue = trade_for_max_revenue*price + (actual_mwh - trade_for_max_revenue) * (imbalance_price - 0.07*(actual_mwh - trade_for_max_revenue)),
-         capture_ratio = revenue / max_revenue) %>%
-  # filter(spread < 1 & spread > -1) %>%
-  group_by(team) %>%
-  summarise(mean_capture_ratio_pos_spread = mean(revenue[spread>=0]) / mean(max_revenue[spread>=0]),
-            mean_capture_ratio_neg_spread = mean(revenue[spread<0]) / mean(max_revenue[spread<0]),
-            sd_capture_ratio_pos_spread = sd(revenue[spread>=0]) / sd(max_revenue[spread>=0]),
-            sd_capture_ratio_neg_spread = sd(revenue[spread<0]) / sd(max_revenue[spread<0]),
-            sharpe_ratio = mean(revenue) / sd(revenue))
-ggplot(., aes(x=spread, y=market_bid, color=revenue)) +
-  facet_wrap(~team, nrow = 5, scales = "fixed") +
-  geom_point(alpha=0.25) +
-  # geom_abline(slope=1, intercept=0, linetype="dashed", color="blue") +
-  # geom_vline(xintercept = log(2e-6), color="red", linetype="dashed") +
-  scale_color_viridis_c(name = "Revenue (GBP)") +
-  # labs(
-  #   y = "Market bid minus trade volume that maximizes revenue (MWh)", # "Revenue from bidding strategically - Revenue from bidding median forecast (GBP)",
-  #   x = "Price spread (GBP/MWh)" # "Revenue from bidding median forecast (GBP)"
-  # ) +
-  # ylim(c(-3,2)) +
-  custom_theme +
-  theme(legend.key.height = unit(0.75,"lines"),
-        legend.position = "bottom",
-        legend.justification = "center")
-
-p_strategic_vs_medianfc
-
-# ggsave(filename = paste0("figs/strategic_vs_medianfc.",fig_format), p_strategic_vs_medianfc.,
-#        width = 8, height = 10, units = "in")
 
 ### Table with trade statistics
 
