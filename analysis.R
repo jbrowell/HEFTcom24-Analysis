@@ -646,6 +646,8 @@ forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_m
                         by=c("dtm", "team"),
                         all.y = T)
 
+forecast_trade[,Pinball:=mean(pinball,na.rm=T),by="team"]
+
 forecast_trade[,unique_forecasts:=length(unique(forecast)),
                by=c("dtm","team")]
 
@@ -653,7 +655,7 @@ forecast_trade[,bid_as_forecast := forecast*price + (actual_mwh - forecast) * (i
 
 plot_data <- forecast_trade[quantile==50,.(Revenue=sum(revenue)/1e6,
                                            `Revenue (q50)`=sum(bid_as_forecast)/1e6,
-                                           Pinball=mean(pinball)),by="team"]
+                                           Pinball=Pinball[1]),by="team"]
 
 plot_data[,Gain:=Revenue - `Revenue (q50)`]
 plot_data[order(Gain,decreasing = T)][Revenue>84]
