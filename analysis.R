@@ -671,22 +671,48 @@ ggplot(plot_data[Pinball<40 & Revenue>75],
 ### Table with trade statistics
 
 
-latex_table <- trade_data %>% 
-  filter(team %in% top_teams_rev) %>%
-  mutate(team = factor(team, levels=top_teams_rev)) %>%
+trade_stats <- trade_data %>% 
+  filter(dtm>="2024-03-20 00:00:00") %>%
+  # mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
     `Win rate [-]` = mean(as.integer(revenue > 0)),
     `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
-    `VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
+    `Trade VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
+    `Production VWAP [GBP/MWh]` = sum(revenue) / sum(actual_mwh),
     `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
     `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
     `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
-    `VaR [GBP]` = quantile(revenue, probs = 0.05),
-    `ES [GBP]` = mean(if_else(revenue <= `VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
+    `5\\% VaR [GBP]` = quantile(revenue, probs = 0.05),
+    `5\\% ES [GBP]` = mean(if_else(revenue <= `5\\% VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
+  data.table(.)
+
+latex_table <- trade_stats %>% 
+  filter(team %in% top_teams_rev) %>%
+  mutate(team = factor(team, levels=top_teams_rev)) %>%
   xtable(.)
 print(latex_table, type = "latex", include.rownames = FALSE,
       sanitize.text.function = identity,
       add.to.row = list(pos = list(0), command = '\\resizebox{\\textwidth}{!}{')
 )
 
+
+## last 2 months
+
+trade_stats <- trade_data %>% 
+  filter(dtm>="2024-03-01 00:00:00") %>%
+  # mutate(team = factor(team, levels=top_teams_rev)) %>%
+  group_by(team) %>%
+  summarise(#`Total revenue` = sum(revenue),
+    `Win rate [-]` = mean(as.integer(revenue > 0)),
+    `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
+    `Trade VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
+    `Production VWAP [GBP/MWh]` = sum(revenue) / sum(actual_mwh),
+    `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
+    `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
+    `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
+    `5\\% VaR [GBP]` = quantile(revenue, probs = 0.05),
+    `5\\% ES [GBP]` = mean(if_else(revenue <= `5\\% VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
+  data.table(.)
+
+trade_stats[`5\\% VaR [GBP]`>-4000,plot(`5\\% VaR [GBP]`,`Production VWAP [GBP/MWh]`)]
