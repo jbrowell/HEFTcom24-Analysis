@@ -1,14 +1,17 @@
+## Set-up ######################################################################
 require(dplyr)
 require(data.table)
-require(rstudioapi)
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 require(ggplot2)
 require(ggridges)
 require(xtable)
 library(latex2exp)
 require(patchwork)
 
-## Fig format
+require(rstudioapi)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+
+###Fig format
 fig_format <- "pdf"
 fig_size_in <- c(8,4)
 custom_theme <- theme_bw() + theme(
@@ -16,22 +19,19 @@ custom_theme <- theme_bw() + theme(
   strip.background =element_rect(fill="white"))
 color_pal_top10 <- RColorBrewer::brewer.pal(10,"Paired")
 
-## Load data
+## Load data ###################################################################
 
 ### Trades, prices and revenue, with missed submissions filled
 trade_data <- fread("data/trades.csv")
-trade_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
-trade_data[team=="Ihubex",verified_student:=TRUE]
+trade_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="༼ つ ◕_◕ ༽つ"]
 
 ### Pinball score by timestamp with missed submissions filled
 forecast_score <- fread("data/pinball.csv")
-forecast_score[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
-forecast_score[team=="Ihubex",verified_student:=TRUE]
+forecast_score[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="༼ つ ◕_◕ ༽つ"]
 
 ### Raw forecast submissions, outturn and pinball, missed submissions not filled
 forecast_data <- fread("data/forecasts.csv")
-forecast_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="Please hug"]
-forecast_data[team=="Ihubex",verified_student:=TRUE]
+forecast_data[team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",team:="༼ つ ◕_◕ ༽つ"]
 
 ### Energy data
 energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
@@ -39,7 +39,7 @@ energy_data <- rbind(fread("data/Energy_Data_20200920_20240118.csv"),
 
 ### leaderboard
 leaderboard <- fread("data/overall_leaderboard.csv")
-leaderboard[Team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",Team:="Please hug"]
+leaderboard[Team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",Team:="༼ つ ◕_◕ ༽つ"]
 
 ### Repot data
 reports <- fread("data/HEFTcom Reports.csv",
@@ -47,7 +47,10 @@ reports <- fread("data/HEFTcom Reports.csv",
 reports[9,RecipientFirstName:="Please hug"]
 setnames(reports,"RecipientFirstName","team")
 
-## Leaderboard
+
+
+
+## Leaderboard #################################################################
 full_leaderboard <- merge(
   forecast_score[,.(Pinball=round(mean(pinball),2),
                     Report=report[1],
@@ -71,9 +74,9 @@ full_leaderboard <- full_leaderboard[order(Pinball),.(Team=team,Pinball,Revenue,
 print(xtable(full_leaderboard), include.rownames=FALSE)
 
 
-## Plots
+## Summary Plots #######################################################################
 
-### Competition data
+### Competition dataset
 
 energy_plot_data <- melt(energy_data[dtm>=as.POSIXct("2023-12-01",tz = "UTC") &
                                        dtm<as.POSIXct("2024-05-19 23:00:00",tz = "UTC"),
@@ -112,36 +115,7 @@ ggsave(filename = paste0("figs/prices.",fig_format), p_price,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 
-### Revenue evolution:
-top_teams_rev <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
-
-mean10 <- trade_data[team%in%top_teams_rev,.(mean10_revenue=mean(revenue)),by=dtm]
-mean10[order(dtm),mean10_cumrevenue := cumsum(mean10_revenue)]
-
-trade_data_plot <- merge(trade_data,mean10,by="dtm",all.x=T)
-
-
-trade_data_plot <- trade_data_plot[team %in% top_teams_rev]#[dtm > "2024-03-01"]
-trade_data_plot$team <- factor(trade_data_plot$team,levels = top_teams_rev)
-
-setkey(trade_data_plot,dtm)
-p <- ggplot(trade_data_plot[,
-                            .(dtm,rel_revenue=(cumsum(revenue)-mean10_cumrevenue)/1e6),
-                            by=team],
-            aes(x=dtm,y=rel_revenue,color=team)) +
-  geom_line() +
-  xlab("Date/Time") + ylab("Relative Revenue [£m]") +
-  guides(color=guide_legend(title="Team (Top 10)")) +
-  scale_color_discrete(breaks=top_teams_rev) +
-  scale_color_manual(values = color_pal_top10) +
-  custom_theme
-
-p
-
-ggsave(filename = paste0("figs/revenue_top10.",fig_format),p,
-       width = fig_size_in[1],height = fig_size_in[2],units = "in")
-
-
+## Forecasting Track ###########################################################
 
 ## Pinball evolution
 
@@ -173,9 +147,6 @@ ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
 ### Forecast evaluation
 
 team_include <- forecast_data[,.N,by=team][N>(39000/2),team]
-
-# include_dtm <- energy_data[dtm>"2024-03-20 00:00:00",dtm] 
-# include_dtm <- energy_data[DA_Price>=0,dtm]
 include_dtm <- energy_data[,dtm]
 
 reliability_data <- rbind(
@@ -228,7 +199,10 @@ plot_data <- merge(rbind(reports[,.(type="regression",
                    by = "team",all.y = T)
 
 plot_data[,method := paste0(method)]
-plot_data <- plot_data[!method %in% c("None","Others ","Others (please specify)","Other supervised learning/regression","NULL")]
+plot_data <- plot_data[!method %in% c("None","Others ",
+                                      "Others (please specify)",
+                                      "Other supervised learning/regression",
+                                      "NULL")]
 
 plot_data[,method := gsub("\\(please provide details\\)","",method)]
 plot_data[,method := gsub(" based on",":",method)]
@@ -262,6 +236,39 @@ fc_methods
 ggsave(filename = paste0("figs/forecast_methods.",fig_format), fc_methods,
        width = fig_size_in[1],height = fig_size_in[2]+0.2,units = "in")
 
+## Trading Track ###############################################################
+
+
+### Revenue evolution:
+top_teams_rev <- trade_data[,sum(revenue),by=team][order(V1,decreasing = T)][1:10,team]
+
+mean10 <- trade_data[team%in%top_teams_rev,.(mean10_revenue=mean(revenue)),by=dtm]
+mean10[order(dtm),mean10_cumrevenue := cumsum(mean10_revenue)]
+
+trade_data_plot <- merge(trade_data,mean10,by="dtm",all.x=T)
+
+
+trade_data_plot <- trade_data_plot[team %in% top_teams_rev]#[dtm > "2024-03-01"]
+trade_data_plot$team <- factor(trade_data_plot$team,levels = top_teams_rev)
+
+setkey(trade_data_plot,dtm)
+p <- ggplot(trade_data_plot[,
+                            .(dtm,rel_revenue=(cumsum(revenue)-mean10_cumrevenue)/1e6),
+                            by=team],
+            aes(x=dtm,y=rel_revenue,color=team)) +
+  geom_line() +
+  xlab("Date/Time") + ylab("Relative Revenue [£m]") +
+  guides(color=guide_legend(title="Team (Top 10)")) +
+  scale_color_discrete(breaks=top_teams_rev) +
+  scale_color_manual(values = color_pal_top10) +
+  custom_theme
+
+p
+
+ggsave(filename = paste0("figs/revenue_top10.",fig_format),p,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
 #### Trade methods
 
 leaderboard_trading <- trade_data %>% 
@@ -278,7 +285,10 @@ plot_data <- merge(rbind(reports[,.(type="approach",
                    by = "team",all.y = T)
 
 plot_data[,method := paste0(method)]
-plot_data <- plot_data[!method %in% c("None","Others (please specify)","Other supervised learning/regression","NULL","NA")]
+plot_data <- plot_data[!method %in% c("None",
+                                      "Others (please specify)",
+                                      "Other supervised learning/regression",
+                                      "NULL","NA")]
 
 plot_data[,method := gsub("\\(please provide details\\)","",method)]
 plot_data[,method := gsub("Others","Other",method)]
@@ -359,11 +369,10 @@ ggsave(filename = paste0("figs/bid_quantile.",fig_format), p_bidq,
 
 
 plot_data[,bid_q50vol := market_bid-forecast]
-p_bid_q50vol <-  ggplot(data = plot_data,#[dtm>"2024-03-20 00:00:00"],
+p_bid_q50vol <-  ggplot(data = plot_data,
                         aes(x=bid_q50vol)) +
   geom_histogram() +
   facet_wrap(~team,ncol=5,scales = "free_y") +
-  # # scale_fill_manual(values = color_pal_top10) +
   xlim(c(-150,150)) +
   ylab("Counts") +
   xlab(TeX("Strategic bid $x - \\hat{q}_{50\\%}$ [MWh]",)) +
@@ -408,11 +417,7 @@ plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-forecast)]
 plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 
 
-### Revenue vs pinball loss
-
 ### Plot Pinball vs Revenue
-
-## Strategic bidders:
 
 inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
                 aes(x=Pinball,y=Revenue)) +
@@ -505,11 +510,6 @@ p_excess_revvpinball <- merge(forecast_score[,.(dtm,team,pinball)],
 p_excess_revvpinball
 ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball_v2.",fig_format),
        p_excess_revvpinball,width = fig_size_in[1],height = fig_size_in[2], units = "in")
-# ggsave(filename = paste0("figs/opportunitiy_cost_from_optimal_trade_vs_pinball.",fig_format),
-#        p_excess_revvpinball,
-#        width = 8, height = 10, units = "in")
-
-
 
 ### Relative change in pinball loss compared to change in revenue
 
@@ -592,10 +592,7 @@ trade_data[,sp:=1+2*difftime(dtm_GB,as.POSIXct(as.Date(dtm_GB)),units = "hours")
 p_spread <- trade_data %>%
   filter(team == "SVK") %>%
   mutate(Spread = imbalance_price - price,
-         # tod = strftime(dtm_GB, format="%H:%M")) %>%
          tod = as.factor(sp)) %>%
-  # select(tod, price, imbalance_price,Spread) %>%
-  # rename(`Day-ahead price`=price, `Imbalance price`=imbalance_price) %>%
   select(tod, price,Spread) %>%
   rename(`Day-ahead price`=price) %>%
   tidyr::pivot_longer(!tod, names_to = "price", values_to = "value") %>%
@@ -635,9 +632,6 @@ p_revv_marketbids <- merge(forecast_data[,.(dtm, team, quantile, forecast, actua
   custom_theme
 
 p_revv_marketbids
-
-# ggsave(filename = paste0("figs/revenue_vs_marketbids.",fig_format), p_revv_marketbids,
-# width = 8, height = 10, units = "in")
 
 ### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
 
@@ -682,7 +676,7 @@ trade_stats <- trade_data %>%
     `Production VWAP [GBP/MWh]` = sum(revenue) / sum(actual_mwh),
     `Sharpe ratio [-]` = mean(revenue) / sd(revenue),
     `Sortino ratio [-]` = mean(revenue) / sd(if_else(revenue < 0, revenue, NA_real_), na.rm=TRUE),
-    `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
+    # `Profit factor [-]` = sum(if_else(revenue > 0, revenue, NA_real_), na.rm = T) / sum(if_else(revenue < 0, revenue, NA_real_), na.rm = T),
     `5\\% VaR [GBP]` = quantile(revenue, probs = 0.05),
     `5\\% ES [GBP]` = mean(if_else(revenue <= `5\\% VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
   data.table(.)
@@ -697,12 +691,10 @@ print(latex_table, type = "latex", include.rownames = FALSE,
 )
 
 
-## last 2 months
+## As above but excluding first week
 
 trade_stats_2 <- trade_data %>% 
   filter(dtm>="2024-02-27 00:00:00") %>%
-  # filter(team %in% top_teams_rev) %>%
-  # mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
     `Win rate [-]` = mean(as.integer(revenue > 0)),
@@ -715,10 +707,6 @@ trade_stats_2 <- trade_data %>%
     `5\\% VaR [GBP]` = quantile(revenue, probs = 0.05),
     `5\\% ES [GBP]` = mean(if_else(revenue <= `5\\% VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
   data.table(.)
-
-trade_stats_2[`5\\% VaR [GBP]`>-1500,# & `Production VWAP [GBP/MWh]`>53,
-              plot(`5\\% VaR [GBP]`,`Production VWAP [GBP/MWh]`)]
-
 
 
 inset <- ggplot(trade_stats_2[`Production VWAP [GBP/MWh]`>45],
@@ -734,8 +722,6 @@ inset <- ggplot(trade_stats_2[`Production VWAP [GBP/MWh]`>45],
         plot.background = element_blank(),#element_rect(fill = gray(0.9)),
         panel.background = element_rect(fill = gray(0.9,alpha = 0.5))) +
   guides(shape="none")
-
-inset
 
 Rev_vs_Risk <- ggplot(trade_stats_2[`5\\% VaR [GBP]`>-1500],#`Production VWAP [GBP/MWh]`>53],
                       aes(x=`5\\% VaR [GBP]`,y=`Production VWAP [GBP/MWh]`)) +
@@ -753,7 +739,6 @@ Rev_vs_Risk <- ggplot(trade_stats_2[`5\\% VaR [GBP]`>-1500],#`Production VWAP [G
   custom_theme +
   inset_element(inset, 0.02, 0.54, 0.40, 0.96)
   
-
 Rev_vs_Risk
 
 ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
