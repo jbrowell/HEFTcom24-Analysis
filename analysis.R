@@ -658,7 +658,7 @@ plot_data <- forecast_trade[quantile==50,.(Revenue=sum(revenue)/1e6,
                                            Pinball=Pinball[1]),by="team"]
 
 plot_data[,Gain:=Revenue - `Revenue (q50)`]
-plot_data[order(Gain,decreasing = T)][Revenue>84]
+plot_data[order(Gain,decreasing = T)][Revenue>81]
 
 ggplot(plot_data[Pinball<40 & Revenue>75],
        aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
@@ -700,7 +700,7 @@ print(latex_table, type = "latex", include.rownames = FALSE,
 ## last 2 months
 
 trade_stats_2 <- trade_data %>% 
-  filter(dtm>="2024-03-01 00:00:00") %>%
+  filter(dtm>="2024-02-27 00:00:00") %>%
   # filter(team %in% top_teams_rev) %>%
   # mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
@@ -756,7 +756,7 @@ Rev_vs_Risk <- ggplot(trade_stats_2[`5\\% VaR [GBP]`>-1500],#`Production VWAP [G
 
 Rev_vs_Risk
 
-ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), pinball_vs_rev,
+ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
 
 
