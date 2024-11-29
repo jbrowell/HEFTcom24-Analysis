@@ -672,8 +672,8 @@ ggplot(plot_data[Pinball<40 & Revenue>75],
 
 
 trade_stats <- trade_data %>% 
-  filter(dtm>="2024-03-20 00:00:00") %>%
-  # mutate(team = factor(team, levels=top_teams_rev)) %>%
+  filter(team %in% top_teams_rev) %>%
+  mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
     `Win rate [-]` = mean(as.integer(revenue > 0)),
@@ -699,8 +699,9 @@ print(latex_table, type = "latex", include.rownames = FALSE,
 
 ## last 2 months
 
-trade_stats <- trade_data %>% 
+trade_stats_2 <- trade_data %>% 
   filter(dtm>="2024-03-01 00:00:00") %>%
+  # filter(team %in% top_teams_rev) %>%
   # mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
@@ -715,4 +716,48 @@ trade_stats <- trade_data %>%
     `5\\% ES [GBP]` = mean(if_else(revenue <= `5\\% VaR [GBP]`, revenue, NA_real_), na.rm = T)) %>%
   data.table(.)
 
-trade_stats[`5\\% VaR [GBP]`>-4000,plot(`5\\% VaR [GBP]`,`Production VWAP [GBP/MWh]`)]
+trade_stats_2[`5\\% VaR [GBP]`>-1500,# & `Production VWAP [GBP/MWh]`>53,
+              plot(`5\\% VaR [GBP]`,`Production VWAP [GBP/MWh]`)]
+
+
+
+inset <- ggplot(trade_stats_2[`Production VWAP [GBP/MWh]`>45],
+                aes(x=`5\\% VaR [GBP]`,y=`Production VWAP [GBP/MWh]`)) +
+  geom_point() +
+  scale_x_continuous(limits=c(-5000,0),breaks=c(-5000,0)) +
+  scale_y_continuous(limits=c(48,55),breaks=c(48,55)) +
+  custom_theme +
+  theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_blank(),#element_rect(fill = gray(0.9)),
+        panel.background = element_rect(fill = gray(0.9,alpha = 0.5))) +
+  guides(shape="none")
+
+inset
+
+Rev_vs_Risk <- ggplot(trade_stats_2[`5\\% VaR [GBP]`>-1500],#`Production VWAP [GBP/MWh]`>53],
+                      aes(x=`5\\% VaR [GBP]`,y=`Production VWAP [GBP/MWh]`)) +
+  geom_point()+
+  geom_text(hjust=1.1, vjust=1.05,
+            aes(label=team),
+            data = trade_stats_2[team %in% c("SVK","Ihubex")])+
+  geom_text(hjust=0.5, vjust=-0.5,
+            aes(label=team),
+            data = trade_stats_2[team %in% c("RE-Cast")])+
+  ylim(c(50,55))+
+  xlim(c(-1500,0)) +
+  xlab("5% VaR [£]") +
+  ylab("Production VWAP [£/MWh]") +
+  custom_theme +
+  inset_element(inset, 0.02, 0.54, 0.40, 0.96)
+  
+
+Rev_vs_Risk
+
+ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), pinball_vs_rev,
+       width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+
