@@ -571,7 +571,7 @@ p_capture_ratio <- trade_data %>%
   ungroup() %>%
   ggplot(., aes(x=hod, y=median_capture_ratio, color=factor(team), group=team, shape = factor(team))) +
   geom_line() +
-  geom_point() +
+  # geom_point() +
   scale_color_manual(values = color_pal_top10, name="Team") +
   scale_shape_discrete(name="Team") +
   scale_x_discrete(breaks=~ .x[seq(1, length(.x), 8)]) +
