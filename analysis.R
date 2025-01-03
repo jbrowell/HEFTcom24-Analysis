@@ -44,7 +44,7 @@ leaderboard[Team=="à¼¼ ã\u0081¤ â—•_â—• à¼½ã\u0081¤",Team:="
 ### Repot data
 reports <- fread("data/HEFTcom Reports.csv",
                  skip = 0,header = T)[-(1:2),]
-reports[9,RecipientFirstName:="Please hug"]
+reports[9,RecipientFirstName:="༼ つ ◕_◕ ༽つ"]
 setnames(reports,"RecipientFirstName","team")
 
 
