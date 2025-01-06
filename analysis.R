@@ -222,7 +222,8 @@ fc_methods <- ggplot(plot_data[order(Rank)],aes(x=method,y=Rank)) +
   ylim(c(1,26)) +
   ylab("Team [ordered by pinball]") +
   scale_y_continuous(breaks = 1:plot_data[,max(Rank)],
-                     labels = leaderboard[order(Pinball)][1:26,Team]) +
+                     labels = leaderboard[
+                       order(Pinball)][1:26,gsub("༼ つ ◕_◕ ༽つ","(Please hug emoji)",Team)]) +
   geom_point() +
   coord_flip() +
   custom_theme +
@@ -738,7 +739,7 @@ Rev_vs_Risk <- ggplot(trade_stats_2[`5\\% VaR [GBP]`>-1500],#`Production VWAP [G
   ylab("Production VWAP [£/MWh]") +
   custom_theme +
   inset_element(inset, 0.02, 0.54, 0.40, 0.96)
-  
+
 Rev_vs_Risk
 
 ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
