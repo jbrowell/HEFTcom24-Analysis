@@ -48,6 +48,18 @@ reports[9,RecipientFirstName:="༼ つ ◕_◕ ༽つ"]
 setnames(reports,"RecipientFirstName","team")
 
 
+## Participant summary
+
+experience_plot <- ggplot(as.data.frame(table(strsplit(paste0(reports$Q2.4,collapse = ","),",")[[1]])),
+                          aes(x=reorder(Var1,Freq),y=Freq)) +
+  geom_bar(stat = "identity") +
+  xlab(NULL) + ylab("Count") +
+  coord_flip() + custom_theme +
+  theme(text=element_text(size=10,family="serif")) +
+  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 30))
+
+ggsave(filename = paste0("figs/experience_plot.",fig_format), experience_plot,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
 
 
 ## Leaderboard #################################################################
