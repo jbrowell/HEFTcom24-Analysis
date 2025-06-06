@@ -48,20 +48,6 @@ reports[9,RecipientFirstName:="༼ つ ◕_◕ ༽つ"]
 setnames(reports,"RecipientFirstName","team")
 
 
-## Participant summary
-
-experience_plot <- ggplot(as.data.frame(table(strsplit(paste0(reports$Q2.4,collapse = ","),",")[[1]])),
-                          aes(x=reorder(Var1,Freq),y=Freq)) +
-  geom_bar(stat = "identity") +
-  xlab(NULL) + ylab("Count") +
-  coord_flip() + custom_theme +
-  theme(text=element_text(size=10,family="serif")) +
-  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 30))
-
-ggsave(filename = paste0("figs/experience_plot.",fig_format), experience_plot,
-       width = fig_size_in[1],height = fig_size_in[2],units = "in")
-
-
 ## Leaderboard #################################################################
 full_leaderboard <- merge(
   forecast_score[,.(Pinball=round(mean(pinball),2),
@@ -87,6 +73,21 @@ print(xtable(full_leaderboard), include.rownames=FALSE)
 
 
 ## Summary Plots #######################################################################
+
+
+## Participant summary
+
+experience_plot <- ggplot(as.data.frame(table(strsplit(paste0(reports$Q2.4,collapse = ","),",")[[1]])),
+                          aes(x=reorder(Var1,Freq),y=Freq)) +
+  geom_bar(stat = "identity") +
+  xlab(NULL) + ylab("Count") +
+  coord_flip() + custom_theme +
+  theme(text=element_text(size=10,family="serif")) +
+  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 30))
+
+ggsave(filename = paste0("figs/experience_plot.",fig_format), experience_plot,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
 
 ### Competition dataset
 
@@ -432,6 +433,25 @@ plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 
 ### Plot Pinball vs Revenue
 
+# Linear trend analysis
+revenue_lm <- lm(Revenue ~ Pinball,data=full_leaderboard[Pinball<32 & Revenue>87,])
+summary(revenue_lm)
+confint(revenue_lm)
+
+# regression_line <- geom_abline(slope = revenue_lm$coefficients[2],
+#                                intercept = revenue_lm$coefficients[1],
+#                                linetype="dashed")
+
+line_segment_data <- data.frame(Pinball=c(22,31))
+line_segment_data$Revenue <- predict(revenue_lm,newdata = line_segment_data)
+regression_line <- annotate("segment",
+                            x = line_segment_data$Pinball[1],
+                            y = line_segment_data$Revenue[1],
+                            xend = line_segment_data$Pinball[2],
+                            yend = line_segment_data$Revenue[2],
+                            linetype="dashed")
+
+# Plot
 inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
                 aes(x=Pinball,y=Revenue)) +
   geom_point() +
@@ -449,6 +469,7 @@ inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
 pinball_vs_rev <- ggplot(full_leaderboard[Pinball<40 & Revenue,],
                          aes(x=Pinball,y=Revenue)) +
   geom_point() +
+  regression_line +
   xlab("Pinball [MWh]") +
   ylab("Revenue [£m]") +
   custom_theme +
@@ -458,6 +479,7 @@ pinball_vs_rev
 
 ggsave(filename = paste0("figs/pinball_vs_rev.",fig_format), pinball_vs_rev,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
+
 
 ### Densities
 
