@@ -632,7 +632,7 @@ p_spread <- trade_data %>%
   rename(`Day-ahead price`=price) %>%
   tidyr::pivot_longer(!tod, names_to = "price", values_to = "value") %>%
   ggplot(., aes(x=tod, y=value)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.size = 0.4) +
   facet_wrap(~price, nrow = 1, scales = "free_y") +
   scale_x_discrete(breaks=~ .x[seq(0, length(.x), 12)]) +
   labs(y="Price [£/MWh]", x="Time of day [settlement period]") +
@@ -779,5 +779,11 @@ Rev_vs_Risk
 ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
 
+## ProbProfit Check
+forecast_data[team=="ProbProfit" & dtm == as.POSIXct("2024-05-16 22:00:00",tz="UTC")]
+forecast_data[team=="ProbProfit" &
+                dtm != as.POSIXct("2024-05-16 22:00:00",tz="UTC") &
+                quantile != 40,
+              mean(pinball)]
 
 
