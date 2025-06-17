@@ -154,8 +154,26 @@ p2 <- ggplot(forecast_score_plot[,.(dtm,pinball=cumsum(pinball)/n),by=team],
 
 p2
 
+# Pinball vs time of day
 ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+ggplot(forecast_score_plot[team=="UI BUD",.(pinball=mean(pinball)),by=hour(dtm)],
+       aes(x=hour,y=pinball)) +
+  geom_line() +
+  custom_theme
+
+pinball_tod_table <- merge(forecast_score_plot[,.(All=mean(pinball)),by=team],
+                           merge(forecast_score_plot[hour(dtm)>=7.5 & hour(dtm)<20,
+                                                     .(Daytime=mean(pinball)),by=team],
+                                 forecast_score_plot[hour(dtm)<7.5 | hour(dtm)>=20,
+                                                     .(Overnight=mean(pinball)),by=team],
+                                 by = "team"),
+                           by = "team")[order(All)]
+
+print(xtable(pinball_tod_table), include.rownames=FALSE)
+
+
 
 ### Forecast evaluation
 
@@ -166,11 +184,11 @@ reliability_data <- rbind(
   forecast_data[dtm %in% include_dtm,.(empirical = 100*mean(actual_mwh<=forecast),
                                        TOD = "All"),
                 by=c("team","quantile")],
-  forecast_data[(hour(dtm)<=7.5 | hour(dtm)>=16.5) & dtm %in% include_dtm,
+  forecast_data[(hour(dtm)<7.5 | hour(dtm)>=20) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Overnight"),
                 by=c("team","quantile")],
-  forecast_data[(hour(dtm)>7.5 & hour(dtm)<16.5) & dtm %in% include_dtm,
+  forecast_data[(hour(dtm)>=7.5 & hour(dtm)<20) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Daytime"),
                 by=c("team","quantile")])
@@ -721,7 +739,7 @@ ggsave(filename = paste0("figs/rev_strategic_vs_q50.",fig_format),
        rev_s_vs_q50,
        device = cairo_pdf,
        width = fig_size_in[1], height = fig_size_in[2], units = "in")
- 
+
 summary(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
 confint(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
 
