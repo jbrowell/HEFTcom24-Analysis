@@ -434,7 +434,7 @@ plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 ### Plot Pinball vs Revenue
 
 # Linear trend analysis
-revenue_lm <- lm(Revenue ~ Pinball,data=full_leaderboard[Pinball<32 & Revenue>87,])
+revenue_lm <- lm(Revenue ~ Pinball,data=full_leaderboard[Pinball<31 & Revenue>87,])
 summary(revenue_lm)
 confint(revenue_lm)
 
@@ -670,10 +670,27 @@ p_revv_marketbids
 
 ### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
 
-forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh, pinball)],
+# Fill missing submissions
+
+forecast_data_filled <- forecast_data
+forecast_data_filled[,filled:=F]
+for(t in forecast_data[team!="Benchmark",unique(team)]){
+  
+  missing_dtm <- unique(forecast_data[!forecast_data[,dtm] %in% forecast_data[team==t,dtm],dtm])
+  
+  fill_data <- forecast_data[team=="Benchmark" & dtm %in% missing_dtm,]
+  fill_data[,filled:=T]
+  fill_data[,team:=t]
+  
+  forecast_data_filled <- rbind(forecast_data_filled,fill_data)
+  
+}
+
+
+forecast_trade <- merge(forecast_data_filled[,.(dtm, team, quantile, forecast, actual_mwh, pinball,filled)],
                         trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],
                         by=c("dtm", "team"),
-                        all.y = T)
+                        all = T)
 
 forecast_trade[,Pinball:=mean(pinball,na.rm=T),by="team"]
 
@@ -687,18 +704,32 @@ plot_data <- forecast_trade[quantile==50,.(Revenue=sum(revenue)/1e6,
                                            Pinball=Pinball[1]),by="team"]
 
 plot_data[,Gain:=Revenue - `Revenue (q50)`]
-plot_data[order(Gain,decreasing = T)][Revenue>81]
 
-ggplot(plot_data[Pinball<40 & Revenue>75],
-       aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
-  geom_errorbar() +
-  geom_point(aes(y=Revenue),shape=15,color="green") +
+rev_s_vs_q50 <- ggplot(plot_data[Pinball<31],
+                       aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
+  geom_errorbar(width=0) +
+  geom_point(aes(y=Revenue),shape=16,color="green") +
   geom_point(aes(y=`Revenue (q50)`),shape=3,color="red") +
+  xlab("Pinball [MWh]") +
+  ylab("Revenue [£m]") +
+  ggtitle(TeX("Revenue from Strategic ($\\bullet$) vs $q_{50\\%}$ (+) Bidding")) +
   custom_theme
 
+rev_s_vs_q50
+
+ggsave(filename = paste0("figs/rev_strategic_vs_q50.",fig_format),
+       rev_s_vs_q50,
+       device = cairo_pdf,
+       width = fig_size_in[1], height = fig_size_in[2], units = "in")
+ 
+summary(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
+confint(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
+
+# Check...
+summary(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
+confint(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
 
 ### Table with trade statistics
-
 
 trade_stats <- trade_data %>% 
   filter(team %in% top_teams_rev) %>%
@@ -778,6 +809,15 @@ Rev_vs_Risk
 
 ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+## Perfect forecasting and max revenue
+forecast_trade[team=="Benchmark" & quantile==50,sum(actual_mwh*price)]
+
+forecast_trade[, optimal_bid := actual_mwh - (imbalance_price - price)/0.14]
+forecast_trade[team=="Benchmark" & quantile==50,
+               sum(optimal_bid*price + (actual_mwh - optimal_bid) * (imbalance_price - 0.07*(actual_mwh - optimal_bid)))]
+
 
 ## ProbProfit Check
 forecast_data[team=="ProbProfit" & dtm == as.POSIXct("2024-05-16 22:00:00",tz="UTC")]
