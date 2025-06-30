@@ -730,7 +730,7 @@ rev_s_vs_q50 <- ggplot(plot_data[Pinball<31],
   geom_point(aes(y=`Revenue (q50)`),shape=3,color="red") +
   xlab("Pinball [MWh]") +
   ylab("Revenue [£m]") +
-  ggtitle(TeX("Revenue from Strategic ($\\bullet$) vs $q_{50\\%}$ (+) Bidding")) +
+  ggtitle(TeX("Revenue from submitted bids ($\\bullet$) vs bidding $q_{50\\%}$ (+)")) +
   custom_theme
 
 rev_s_vs_q50
@@ -746,6 +746,43 @@ confint(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
 # Check...
 summary(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
 confint(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
+
+
+### Pinball of selected quantiles vs Revenue
+
+forecast_trade[quantile %in% c(10,90),Pinball_10_90:=mean(pinball,na.rm=T),by="team"]
+
+plot_data <- forecast_trade[quantile==10,.(Revenue=sum(revenue)/1e6,
+                                           Pinball=Pinball_10_90[1]),by="team"]
+
+
+pinball_10_90_vs_rev <- ggplot(plot_data[Pinball<25],
+                               aes(x=Pinball,y=Revenue)) +
+  geom_point() +
+  xlab("Pinball (10% and 90% quantiles only) [MWh]") +
+  ylab("Revenue [£m]") +
+  custom_theme
+
+pinball_10_90_vs_rev
+
+ggsave(filename = paste0("figs/pinball_10_90_vs_rev.",fig_format), pinball_10_90_vs_rev,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+### Overall Pinball vs q10/90 Pinball
+
+plot_data = merge(forecast_data_filled[,.(Pinball=mean(pinball)),by=team],
+                  forecast_data_filled[quantile %in% c(10,90),.(Pinball_10_90=mean(pinball)),by=team])
+
+pinball_vs_pinball_10_90 <- ggplot(plot_data[Pinball<50],
+                                   aes(x=Pinball_10_90,y=Pinball)) +
+  geom_point() +
+  xlab("Pinball (10% and 90% quantiles only) [MWh]") +
+  ylab("Pinball [MWh]") +
+  custom_theme
+
+pinball_vs_pinball_10_90
+
 
 ### Table with trade statistics
 
