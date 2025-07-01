@@ -791,7 +791,7 @@ trade_stats <- trade_data %>%
   mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
-    `Win rate [-]` = mean(as.integer(revenue > 0)),
+    `Win rate [%]` = 100*mean(as.integer(revenue > 0)),
     `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
     `Trade VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
     `Production VWAP [GBP/MWh]` = sum(revenue) / sum(actual_mwh),
@@ -805,8 +805,10 @@ trade_stats <- trade_data %>%
 latex_table <- trade_stats %>% 
   filter(team %in% top_teams_rev) %>%
   mutate(team = factor(team, levels=top_teams_rev)) %>%
-  xtable(.)
-print(latex_table, type = "latex", include.rownames = FALSE,
+  xtable(digits=c(NA,NA,1,2,2,2,3,3,2,2))
+print(latex_table,
+      type = "latex",
+      include.rownames = FALSE,
       sanitize.text.function = identity,
       add.to.row = list(pos = list(0), command = '\\resizebox{\\textwidth}{!}{')
 )
