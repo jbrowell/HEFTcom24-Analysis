@@ -2,7 +2,7 @@
 
 Analysis of the Hybrid Renewable Energy Forecasting and Tracing Competition 2024 to be included in a forthcomming paper.
 
-To run `analysis.R`, the following files should be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.13950764) (not published yet, [contact Jethro](mailto:jethro.browell@glasgow.ac.uk) for access) and added to the `data/` directory:
+To run `analysis.R`, the following files should be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.13950764) and added to the `data/` directory:
 - trades.csv
 - pinball.csv
 - forecasts.csv
@@ -11,6 +11,12 @@ To run `analysis.R`, the following files should be downloaded from [Zenodo](http
 - overall_leaderboard.csv
 - HEFTcom Reports.csv
 
+## Citation
+
+This repository is archived on [Zenodo](https://doi.org/10.5281/zenodo.14247209). The DOI `10.5281/zenodo.14247209` represents all versions, and will always resolve to the latest one. DOIs for specific versions are also available there.
+```
+Jethro Browell. (2025). jbrowell/HEFTcom24-Analysis. Zenodo. https://doi.org/10.5281/zenodo.14247209
+```
 
 ## R Environment Info
 
