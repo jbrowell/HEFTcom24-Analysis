@@ -31,7 +31,7 @@ Please also cite the HEFTcom paper: J. Browell, D.W. Van der Meer, H. Kälvegren
 
 ```
 @misc{Browell2025HEFTcom,
-      title={}, 
+      title={The Hybrid Renewable Energy Forecasting and Trading Competition 2024}, 
       author={Jethro Browell and Dennis van der Meer and Henrik K\"alvegren and Sebastian Haglund and Edoardo Simioni and Ricardo J. Bessa and Yi Wang},
       year={2025},
       eprint={XXXX},
