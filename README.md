@@ -1,6 +1,6 @@
 # HEFTcom24-Analysis
 
-Analysis of the Hybrid Renewable Energy Forecasting and Tracing Competition 2024 to be included in a forthcomming paper.
+Analysis of the Hybrid Renewable Energy Forecasting and Tracing Competition 2024 to reproduce and extend results presented in [this paper](https://arxiv.org/abs/XXXX).
 
 To run `analysis.R`, the following files should be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.13950764) and added to the `data/` directory:
 - trades.csv
@@ -14,8 +14,31 @@ To run `analysis.R`, the following files should be downloaded from [Zenodo](http
 ## Citation
 
 This repository is archived on [Zenodo](https://doi.org/10.5281/zenodo.14247209). The DOI `10.5281/zenodo.14247209` represents all versions, and will always resolve to the latest one. DOIs for specific versions are also available there.
+
+Citation: Jethro Browell, (2025), jbrowell/HEFTcom24-Analysis, Zenodo, https://doi.org/10.5281/zenodo.14247209
+
 ```
-Jethro Browell. (2025). jbrowell/HEFTcom24-Analysis. Zenodo. https://doi.org/10.5281/zenodo.14247209
+@misc{Browell2024HEFTcomAnalysis,
+    title = {{jbrowell/HEFTcom24-Analysis}},
+    year = {2024},
+    author = {Browell, Jethro},
+    publisher = {Zenodo},
+    doi = {10.5281/zenodo.14247209}
+}
+```
+
+Please also cite the HEFTcom paper: J. Browell, D.W. Van der Meer, H. Kälvegren, S. Haglund, E. Simioni, R.J. Bessa, Y. Wang, (2025), "The Hybrid Energy Forecasting and Trading Competition 2024", arXiv:XXXX
+
+```
+@misc{Browell2025HEFTcom,
+      title={}, 
+      author={Jethro Browell and Dennis van der Meer and Henrik K\"alvegren and Sebastian Haglund and Edoardo Simioni and Ricardo J. Bessa and Yi Wang},
+      year={2025},
+      eprint={XXXX},
+      archivePrefix={arXiv},
+      primaryClass={stat.AP},
+      url={https://arxiv.org/abs/XXXX}, 
+}
 ```
 
 ## R Environment Info
