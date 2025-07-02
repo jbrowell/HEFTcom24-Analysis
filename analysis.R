@@ -48,8 +48,6 @@ reports[9,RecipientFirstName:="༼ つ ◕_◕ ༽つ"]
 setnames(reports,"RecipientFirstName","team")
 
 
-
-
 ## Leaderboard #################################################################
 full_leaderboard <- merge(
   forecast_score[,.(Pinball=round(mean(pinball),2),
@@ -75,6 +73,21 @@ print(xtable(full_leaderboard), include.rownames=FALSE)
 
 
 ## Summary Plots #######################################################################
+
+
+## Participant summary
+
+experience_plot <- ggplot(as.data.frame(table(strsplit(paste0(reports$Q2.4,collapse = ","),",")[[1]])),
+                          aes(x=reorder(Var1,Freq),y=Freq)) +
+  geom_bar(stat = "identity") +
+  xlab(NULL) + ylab("Count") +
+  coord_flip() + custom_theme +
+  theme(text=element_text(size=10,family="serif")) +
+  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 30))
+
+ggsave(filename = paste0("figs/experience_plot.",fig_format), experience_plot,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
 
 ### Competition dataset
 
@@ -141,8 +154,26 @@ p2 <- ggplot(forecast_score_plot[,.(dtm,pinball=cumsum(pinball)/n),by=team],
 
 p2
 
+# Pinball vs time of day
 ggsave(filename = paste0("figs/pinball_top10.",fig_format), p2,
        width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+ggplot(forecast_score_plot[team=="UI BUD",.(pinball=mean(pinball)),by=hour(dtm)],
+       aes(x=hour,y=pinball)) +
+  geom_line() +
+  custom_theme
+
+pinball_tod_table <- merge(forecast_score_plot[,.(All=mean(pinball)),by=team],
+                           merge(forecast_score_plot[hour(dtm)>=7.5 & hour(dtm)<20,
+                                                     .(Daytime=mean(pinball)),by=team],
+                                 forecast_score_plot[hour(dtm)<7.5 | hour(dtm)>=20,
+                                                     .(Overnight=mean(pinball)),by=team],
+                                 by = "team"),
+                           by = "team")[order(All)]
+
+print(xtable(pinball_tod_table), include.rownames=FALSE)
+
+
 
 ### Forecast evaluation
 
@@ -153,11 +184,11 @@ reliability_data <- rbind(
   forecast_data[dtm %in% include_dtm,.(empirical = 100*mean(actual_mwh<=forecast),
                                        TOD = "All"),
                 by=c("team","quantile")],
-  forecast_data[(hour(dtm)<=7.5 | hour(dtm)>=16.5) & dtm %in% include_dtm,
+  forecast_data[(hour(dtm)<7.5 | hour(dtm)>=20) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Overnight"),
                 by=c("team","quantile")],
-  forecast_data[(hour(dtm)>7.5 & hour(dtm)<16.5) & dtm %in% include_dtm,
+  forecast_data[(hour(dtm)>=7.5 & hour(dtm)<20) & dtm %in% include_dtm,
                 .(empirical = 100*mean(actual_mwh<=forecast),
                   TOD = "Daytime"),
                 by=c("team","quantile")])
@@ -420,6 +451,25 @@ plot_data[team=="SVK",plot((imbalance_price-price)/0.14,market_bid-actual_mwh)]
 
 ### Plot Pinball vs Revenue
 
+# Linear trend analysis
+revenue_lm <- lm(Revenue ~ Pinball,data=full_leaderboard[Pinball<31 & Revenue>87,])
+summary(revenue_lm)
+confint(revenue_lm)
+
+# regression_line <- geom_abline(slope = revenue_lm$coefficients[2],
+#                                intercept = revenue_lm$coefficients[1],
+#                                linetype="dashed")
+
+line_segment_data <- data.frame(Pinball=c(22,31))
+line_segment_data$Revenue <- predict(revenue_lm,newdata = line_segment_data)
+regression_line <- annotate("segment",
+                            x = line_segment_data$Pinball[1],
+                            y = line_segment_data$Revenue[1],
+                            xend = line_segment_data$Pinball[2],
+                            yend = line_segment_data$Revenue[2],
+                            linetype="dashed")
+
+# Plot
 inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
                 aes(x=Pinball,y=Revenue)) +
   geom_point() +
@@ -437,6 +487,7 @@ inset <- ggplot(full_leaderboard[Pinball<65 & Revenue>77,],
 pinball_vs_rev <- ggplot(full_leaderboard[Pinball<40 & Revenue,],
                          aes(x=Pinball,y=Revenue)) +
   geom_point() +
+  regression_line +
   xlab("Pinball [MWh]") +
   ylab("Revenue [£m]") +
   custom_theme +
@@ -446,6 +497,7 @@ pinball_vs_rev
 
 ggsave(filename = paste0("figs/pinball_vs_rev.",fig_format), pinball_vs_rev,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
+
 
 ### Densities
 
@@ -598,7 +650,7 @@ p_spread <- trade_data %>%
   rename(`Day-ahead price`=price) %>%
   tidyr::pivot_longer(!tod, names_to = "price", values_to = "value") %>%
   ggplot(., aes(x=tod, y=value)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.size = 0.4) +
   facet_wrap(~price, nrow = 1, scales = "free_y") +
   scale_x_discrete(breaks=~ .x[seq(0, length(.x), 12)]) +
   labs(y="Price [£/MWh]", x="Time of day [settlement period]") +
@@ -636,10 +688,27 @@ p_revv_marketbids
 
 ### Revenue from bidding p50 revenue vs strategic bidding (i.e., participant's actual bids)
 
-forecast_trade <- merge(forecast_data[,.(dtm, team, quantile, forecast, actual_mwh, pinball)],
+# Fill missing submissions
+
+forecast_data_filled <- forecast_data
+forecast_data_filled[,filled:=F]
+for(t in forecast_data[team!="Benchmark",unique(team)]){
+  
+  missing_dtm <- unique(forecast_data[!forecast_data[,dtm] %in% forecast_data[team==t,dtm],dtm])
+  
+  fill_data <- forecast_data[team=="Benchmark" & dtm %in% missing_dtm,]
+  fill_data[,filled:=T]
+  fill_data[,team:=t]
+  
+  forecast_data_filled <- rbind(forecast_data_filled,fill_data)
+  
+}
+
+
+forecast_trade <- merge(forecast_data_filled[,.(dtm, team, quantile, forecast, actual_mwh, pinball,filled)],
                         trade_data[,.(dtm, team, market_bid, imbalance_price, price, revenue)],
                         by=c("dtm", "team"),
-                        all.y = T)
+                        all = T)
 
 forecast_trade[,Pinball:=mean(pinball,na.rm=T),by="team"]
 
@@ -653,25 +722,76 @@ plot_data <- forecast_trade[quantile==50,.(Revenue=sum(revenue)/1e6,
                                            Pinball=Pinball[1]),by="team"]
 
 plot_data[,Gain:=Revenue - `Revenue (q50)`]
-plot_data[order(Gain,decreasing = T)][Revenue>81]
 
-ggplot(plot_data[Pinball<40 & Revenue>75],
-       aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
-  geom_errorbar() +
-  geom_point(aes(y=Revenue),shape=15,color="green") +
+rev_s_vs_q50 <- ggplot(plot_data[Pinball<31],
+                       aes(x=Pinball,ymin=`Revenue (q50)`,ymax=Revenue)) +
+  geom_errorbar(width=0) +
+  geom_point(aes(y=Revenue),shape=16,color="green") +
   geom_point(aes(y=`Revenue (q50)`),shape=3,color="red") +
+  xlab("Pinball [MWh]") +
+  ylab("Revenue [£m]") +
+  ggtitle(TeX("Revenue from submitted bids ($\\bullet$) vs bidding $q_{50\\%}$ (+)")) +
   custom_theme
+
+rev_s_vs_q50
+
+ggsave(filename = paste0("figs/rev_strategic_vs_q50.",fig_format),
+       rev_s_vs_q50,
+       device = cairo_pdf,
+       width = fig_size_in[1], height = fig_size_in[2], units = "in")
+
+summary(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
+confint(lm(`Revenue (q50)` ~ Pinball, data = plot_data[Pinball<31]))
+
+# Check...
+summary(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
+confint(lm(`Revenue` ~ Pinball, data = plot_data[Pinball<31 & Revenue > 87]))
+
+
+### Pinball of selected quantiles vs Revenue
+
+forecast_trade[quantile %in% c(10,90),Pinball_10_90:=mean(pinball,na.rm=T),by="team"]
+
+plot_data <- forecast_trade[quantile==10,.(Revenue=sum(revenue)/1e6,
+                                           Pinball=Pinball_10_90[1]),by="team"]
+
+
+pinball_10_90_vs_rev <- ggplot(plot_data[Pinball<25],
+                               aes(x=Pinball,y=Revenue)) +
+  geom_point() +
+  xlab("Pinball (10% and 90% quantiles only) [MWh]") +
+  ylab("Revenue [£m]") +
+  custom_theme
+
+pinball_10_90_vs_rev
+
+ggsave(filename = paste0("figs/pinball_10_90_vs_rev.",fig_format), pinball_10_90_vs_rev,
+       width = fig_size_in[1],height = fig_size_in[2],units = "in")
+
+
+### Overall Pinball vs q10/90 Pinball
+
+plot_data = merge(forecast_data_filled[,.(Pinball=mean(pinball)),by=team],
+                  forecast_data_filled[quantile %in% c(10,90),.(Pinball_10_90=mean(pinball)),by=team])
+
+pinball_vs_pinball_10_90 <- ggplot(plot_data[Pinball<50],
+                                   aes(x=Pinball_10_90,y=Pinball)) +
+  geom_point() +
+  xlab("Pinball (10% and 90% quantiles only) [MWh]") +
+  ylab("Pinball [MWh]") +
+  custom_theme
+
+pinball_vs_pinball_10_90
 
 
 ### Table with trade statistics
-
 
 trade_stats <- trade_data %>% 
   filter(team %in% top_teams_rev) %>%
   mutate(team = factor(team, levels=top_teams_rev)) %>%
   group_by(team) %>%
   summarise(#`Total revenue` = sum(revenue),
-    `Win rate [-]` = mean(as.integer(revenue > 0)),
+    `Win rate [%]` = 100*mean(as.integer(revenue > 0)),
     `Relative bid volume [-]` = sum(market_bid) / sum(actual_mwh),
     `Trade VWAP [GBP/MWh]` = sum(revenue) / sum(market_bid),
     `Production VWAP [GBP/MWh]` = sum(revenue) / sum(actual_mwh),
@@ -685,8 +805,10 @@ trade_stats <- trade_data %>%
 latex_table <- trade_stats %>% 
   filter(team %in% top_teams_rev) %>%
   mutate(team = factor(team, levels=top_teams_rev)) %>%
-  xtable(.)
-print(latex_table, type = "latex", include.rownames = FALSE,
+  xtable(digits=c(NA,NA,1,2,2,2,3,3,2,2))
+print(latex_table,
+      type = "latex",
+      include.rownames = FALSE,
       sanitize.text.function = identity,
       add.to.row = list(pos = list(0), command = '\\resizebox{\\textwidth}{!}{')
 )
@@ -745,5 +867,20 @@ Rev_vs_Risk
 ggsave(filename = paste0("figs/Rev_vs_Risk.",fig_format), Rev_vs_Risk,
        width = 0.7*fig_size_in[1],height = fig_size_in[2],units = "in")
 
+
+## Perfect forecasting and max revenue
+forecast_trade[team=="Benchmark" & quantile==50,sum(actual_mwh*price)]
+
+forecast_trade[, optimal_bid := actual_mwh - (imbalance_price - price)/0.14]
+forecast_trade[team=="Benchmark" & quantile==50,
+               sum(optimal_bid*price + (actual_mwh - optimal_bid) * (imbalance_price - 0.07*(actual_mwh - optimal_bid)))]
+
+
+## ProbProfit Check
+forecast_data[team=="ProbProfit" & dtm == as.POSIXct("2024-05-16 22:00:00",tz="UTC")]
+forecast_data[team=="ProbProfit" &
+                dtm != as.POSIXct("2024-05-16 22:00:00",tz="UTC") &
+                quantile != 40,
+              mean(pinball)]
 
 
