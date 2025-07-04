@@ -1,6 +1,6 @@
 # HEFTcom24-Analysis
 
-Analysis of the Hybrid Renewable Energy Forecasting and Tracing Competition 2024 to reproduce and extend results presented in [this paper](https://arxiv.org/abs/XXXX).
+Analysis of the Hybrid Renewable Energy Forecasting and Tracing Competition 2024 to reproduce and extend results presented in [this paper](https://arxiv.org/abs/2507.01579).
 
 To run `analysis.R`, the following files should be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.13950764) and added to the `data/` directory:
 - trades.csv
@@ -27,17 +27,17 @@ Citation: Jethro Browell, (2025), jbrowell/HEFTcom24-Analysis, Zenodo, https://d
 }
 ```
 
-Please also cite the HEFTcom paper: J. Browell, D.W. Van der Meer, H. Kälvegren, S. Haglund, E. Simioni, R.J. Bessa, Y. Wang, (2025), "The Hybrid Energy Forecasting and Trading Competition 2024", arXiv:XXXX
+Please also cite the HEFTcom paper: J. Browell, D.W. Van der Meer, H. Kälvegren, S. Haglund, E. Simioni, R.J. Bessa, Y. Wang, (2025), "The Hybrid Energy Forecasting and Trading Competition 2024", arXiv:2507.01579
 
 ```
-@misc{Browell2025HEFTcom,
+@misc{browell2025hybridrenewableenergyforecasting,
       title={The Hybrid Renewable Energy Forecasting and Trading Competition 2024}, 
-      author={Jethro Browell and Dennis van der Meer and Henrik K\"alvegren and Sebastian Haglund and Edoardo Simioni and Ricardo J. Bessa and Yi Wang},
+      author={Jethro Browell and Dennis van der Meer and Henrik Kälvegren and Sebastian Haglund and Edoardo Simioni and Ricardo J. Bessa and Yi Wang},
       year={2025},
-      eprint={XXXX},
+      eprint={2507.01579},
       archivePrefix={arXiv},
       primaryClass={stat.AP},
-      url={https://arxiv.org/abs/XXXX}, 
+      url={https://arxiv.org/abs/2507.01579} 
 }
 ```
 
